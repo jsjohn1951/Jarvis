@@ -3,6 +3,7 @@ import { join } from "node:path";
 import { config } from "./config.js";
 import { quickComplete } from "./quick.js";
 import { cloudComplete } from "./runner.js";
+import * as fallback from "./fallback.js";
 
 export type Turn = { role: "user" | "assistant"; content: string };
 
@@ -76,6 +77,10 @@ export async function capture(): Promise<void> {
 
 // ── Curation: cloud consolidation (periodic, quality) ─────────────────────────
 export async function maybeConsolidate(force = false): Promise<void> {
+  // Cloud consolidation needs Sonnet. If the breaker is open, defer WITHOUT
+  // touching the turn counter or the candidate file, so captured facts survive
+  // the outage and get consolidated once the cloud is back.
+  if (fallback.isOpen()) return;
   turnsSinceConsolidate++;
   const candidates = read(candidatesPath()).split("\n").filter((l) => l.trim().startsWith("-"));
   if (candidates.length === 0) return;

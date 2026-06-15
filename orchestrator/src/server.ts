@@ -114,6 +114,8 @@ async function handlePrompt(
         if (ev.type === "text") {
           full += ev.delta;
           send(ws, { type: "text", delta: ev.delta });
+        } else if (ev.type === "fallback") {
+          send(ws, { type: "agent", name: agent, via: "local-fallback" });
         } else if (ev.type === "tool") {
           send(ws, { type: "tool", name: ev.name });
         } else if (ev.type === "result") {
