@@ -16,6 +16,14 @@ export const config = {
   // to Anthropic). Subagents declared with the local model fall through to llama.
   cloudModel: process.env.JARVIS_CLOUD_MODEL ?? "claude-sonnet-4-6",
 
+  // Local 9B used when the cloud is unavailable. The name must satisfy the
+  // router's routes_to_local() (contains "gguf" / starts with "qwen") so the
+  // request is served by llama.cpp on :8080 with tool-call translation.
+  localModel: process.env.JARVIS_LOCAL_MODEL ?? "Qwen3.5-9B-Q4_K_M.gguf",
+  // Circuit-breaker cooldown: after a Claude-unavailable error, requests go
+  // straight to local for this long before the next one probes the cloud again.
+  fallbackCooldownMs: Number(process.env.JARVIS_FALLBACK_COOLDOWN_MS ?? 5 * 60_000),
+
   // Where the `dev` agent operates. Defaults to the user's home — set per-project.
   repoDir: process.env.JARVIS_REPO ?? homedir(),
 
