@@ -1,0 +1,403 @@
+<!DOCTYPE html>
+
+<html class="dark" lang="en"><head>
+<meta charset="utf-8"/>
+<meta content="width=device-width, initial-scale=1.0" name="viewport"/>
+<title>A.R.V.I.S. OS | Agent Management Console</title>
+<script src="https://cdn.tailwindcss.com?plugins=forms,container-queries"></script>
+<link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;600;700&amp;family=Geist:wght@400;500;600&amp;family=Material+Symbols+Outlined:wght,FILL@100..700,0..1&amp;display=swap" rel="stylesheet"/>
+<link href="https://fonts.googleapis.com/css2?family=Material+Symbols+Outlined:wght,FILL@100..700,0..1&amp;display=swap" rel="stylesheet"/>
+<link href="https://fonts.googleapis.com/css2?family=Geist:wght@100..900&amp;family=Inter:wght@100..900&amp;display=swap" rel="stylesheet"/>
+<style>
+        @keyframes pulse-glow {
+            0% { box-shadow: 0 0 5px rgba(0, 242, 255, 0.2); }
+            50% { box-shadow: 0 0 20px rgba(0, 242, 255, 0.6); }
+            100% { box-shadow: 0 0 5px rgba(0, 242, 255, 0.2); }
+        }
+        .glow { animation: pulse-glow 2s infinite ease-in-out; }
+        .glass-panel { backdrop-filter: blur(20px); }
+        .arc-pulse { animation: ping 2s cubic-bezier(0, 0, 0.2, 1) infinite; }
+        .status-scan {
+            background: linear-gradient(90deg, transparent, rgba(0, 242, 255, 0.1), transparent);
+            background-size: 200% 100%;
+            animation: scan 3s linear infinite;
+        }
+        @keyframes scan {
+            0% { background-position: 100% 0; }
+            100% { background-position: -100% 0; }
+        }
+        body { background-color: #05070A; color: #e1e2e7; }
+    </style>
+<script id="tailwind-config">
+      tailwind.config = {
+        darkMode: "class",
+        theme: {
+          extend: {
+            "colors": {
+                    "on-primary-container": "#006a71",
+                    "tertiary-fixed": "#e1e2ea",
+                    "error-container": "#93000a",
+                    "surface-container-low": "#191c1f",
+                    "on-surface": "#e1e2e7",
+                    "on-tertiary-fixed-variant": "#44474d",
+                    "primary-fixed": "#74f5ff",
+                    "outline-variant": "#3a494b",
+                    "on-tertiary": "#2d3037",
+                    "on-background": "#e1e2e7",
+                    "secondary": "#ffb4aa",
+                    "surface-dim": "#111417",
+                    "surface-container-high": "#282a2e",
+                    "primary": "#e1fdff",
+                    "secondary-fixed-dim": "#ffb4aa",
+                    "background": "#111417",
+                    "on-primary-fixed": "#002022",
+                    "on-secondary-container": "#ffd2cc",
+                    "surface": "#111417",
+                    "outline": "#849495",
+                    "on-tertiary-container": "#5d6067",
+                    "surface-container-highest": "#323539",
+                    "tertiary-container": "#d9dbe3",
+                    "surface-container-lowest": "#0c0e12",
+                    "on-primary": "#00363a",
+                    "surface-tint": "#00dbe7",
+                    "inverse-primary": "#00696f",
+                    "on-secondary-fixed-variant": "#930005",
+                    "tertiary-fixed-dim": "#c4c6ce",
+                    "inverse-surface": "#e1e2e7",
+                    "on-tertiary-fixed": "#191c22",
+                    "on-secondary": "#690003",
+                    "primary-fixed-dim": "#00dbe7",
+                    "surface-bright": "#37393d",
+                    "on-surface-variant": "#b9cacb",
+                    "on-error-container": "#ffdad6",
+                    "secondary-fixed": "#ffdad5",
+                    "inverse-on-surface": "#2e3134",
+                    "on-error": "#690005",
+                    "on-secondary-fixed": "#410001",
+                    "surface-variant": "#323539",
+                    "secondary-container": "#c5020b",
+                    "on-primary-fixed-variant": "#004f54",
+                    "error": "#ffb4ab",
+                    "tertiary": "#f7f7ff",
+                    "surface-container": "#1d2023",
+                    "primary-container": "#00f2ff"
+            },
+            "borderRadius": {
+                    "DEFAULT": "0.125rem",
+                    "lg": "0.25rem",
+                    "xl": "0.5rem",
+                    "full": "0.75rem"
+            },
+            "spacing": {
+                    "margin-desktop": "40px",
+                    "gutter": "16px",
+                    "unit": "4px",
+                    "container-max": "1440px",
+                    "margin-mobile": "16px"
+            },
+            "fontFamily": {
+                    "body-sm": ["Inter"],
+                    "mono-data": ["Geist"],
+                    "display-lg": ["Inter"],
+                    "headline-md": ["Inter"],
+                    "body-lg": ["Inter"],
+                    "label-caps": ["Geist"],
+                    "headline-lg": ["Inter"],
+                    "headline-lg-mobile": ["Inter"]
+            },
+            "fontSize": {
+                    "body-sm": ["14px", {"lineHeight": "1.5", "fontWeight": "400"}],
+                    "mono-data": ["13px", {"lineHeight": "1", "letterSpacing": "0.02em", "fontWeight": "500"}],
+                    "display-lg": ["48px", {"lineHeight": "1.1", "letterSpacing": "-0.04em", "fontWeight": "700"}],
+                    "headline-md": ["20px", {"lineHeight": "1.4", "fontWeight": "600"}],
+                    "body-lg": ["16px", {"lineHeight": "1.6", "fontWeight": "400"}],
+                    "label-caps": ["12px", {"lineHeight": "1", "letterSpacing": "0.1em", "fontWeight": "600"}],
+                    "headline-lg": ["32px", {"lineHeight": "1.2", "letterSpacing": "-0.02em", "fontWeight": "600"}],
+                    "headline-lg-mobile": ["24px", {"lineHeight": "1.2", "fontWeight": "600"}]
+            }
+          },
+        },
+      }
+    </script>
+</head>
+<body class="font-body-lg text-on-surface antialiased overflow-x-hidden">
+<!-- TopAppBar -->
+<header class="fixed top-0 w-full z-50 bg-surface-dim/60 backdrop-blur-xl border-b border-outline-variant/30 shadow-[0_0_12px_rgba(0,242,255,0.2)] flex justify-between items-center px-margin-desktop h-16 w-full">
+<div class="flex items-center gap-4">
+<span class="font-headline-md text-headline-md text-primary tracking-tighter">A.R.V.I.S. OS</span>
+<div class="h-4 w-[1px] bg-outline-variant/40"></div>
+<span class="font-label-caps text-label-caps text-primary tracking-widest uppercase">System Control</span>
+</div>
+<!-- Telemetry Health Top Bar -->
+<div class="hidden md:flex items-center gap-gutter">
+<div class="flex items-center gap-2 px-3 py-1 bg-surface-container-highest/20 border border-outline-variant/20 rounded">
+<span class="w-1.5 h-1.5 bg-primary rounded-full arc-pulse"></span>
+<span class="font-mono-data text-mono-data text-on-surface-variant">llama.cpp: <span class="text-primary">ACTIVE</span></span>
+<span class="font-mono-data text-mono-data text-on-surface-variant ml-2 opacity-60">2.4ms</span>
+</div>
+<div class="flex items-center gap-2 px-3 py-1 bg-surface-container-highest/20 border border-outline-variant/20 rounded">
+<span class="w-1.5 h-1.5 bg-primary rounded-full arc-pulse"></span>
+<span class="font-mono-data text-mono-data text-on-surface-variant">orchestrator: <span class="text-primary">SYNCED</span></span>
+</div>
+<div class="flex gap-4 ml-4">
+<span class="material-symbols-outlined text-primary hover:text-primary-fixed hover:glow transition-all duration-300 cursor-pointer">memory</span>
+<span class="material-symbols-outlined text-on-surface-variant hover:text-primary-fixed hover:glow transition-all duration-300 cursor-pointer">router</span>
+<span class="material-symbols-outlined text-on-surface-variant hover:text-primary-fixed hover:glow transition-all duration-300 cursor-pointer">hub</span>
+<span class="material-symbols-outlined text-on-surface-variant hover:text-primary-fixed hover:glow transition-all duration-300 cursor-pointer">security</span>
+</div>
+</div>
+</header>
+<!-- SideNavBar -->
+<aside class="fixed left-0 top-0 h-full w-64 bg-surface-container-low/40 backdrop-blur-2xl border-r border-outline-variant/20 flex flex-col py-8 gap-unit z-40">
+<div class="px-6 mb-12">
+<h1 class="font-headline-lg text-headline-lg text-primary glow mb-1">A.R.V.I.S.</h1>
+<p class="font-label-caps text-label-caps text-on-surface-variant opacity-60">V3.4 Tactical</p>
+</div>
+<nav class="flex-1 space-y-1">
+<a class="flex items-center px-6 py-3 text-on-surface-variant font-label-caps text-label-caps hover:bg-primary/10 hover:text-primary transition-colors group" href="#">
+<span class="material-symbols-outlined mr-4">dashboard</span>
+                Dashboard
+            </a>
+<a class="flex items-center px-6 py-3 text-primary border-r-2 border-primary-fixed bg-primary/5 font-label-caps text-label-caps transition-all" href="#">
+<span class="material-symbols-outlined mr-4">psychology</span>
+                Agents
+            </a>
+<a class="flex items-center px-6 py-3 text-on-surface-variant font-label-caps text-label-caps hover:bg-primary/10 hover:text-primary transition-colors group" href="#">
+<span class="material-symbols-outlined mr-4">assignment_turned_in</span>
+                Tasks
+            </a>
+<a class="flex items-center px-6 py-3 text-on-surface-variant font-label-caps text-label-caps hover:bg-primary/10 hover:text-primary transition-colors group" href="#">
+<span class="material-symbols-outlined mr-4">settings</span>
+                System
+            </a>
+</nav>
+<div class="px-6 mt-auto space-y-2">
+<a class="flex items-center text-on-surface-variant hover:text-primary transition-colors font-mono-data text-mono-data" href="#">
+<span class="material-symbols-outlined text-[18px] mr-2">terminal</span> Logs
+            </a>
+<a class="flex items-center text-on-surface-variant hover:text-primary transition-colors font-mono-data text-mono-data" href="#">
+<span class="material-symbols-outlined text-[18px] mr-2">lan</span> Network
+            </a>
+</div>
+</aside>
+<!-- Main Content Canvas -->
+<main class="ml-64 pt-24 pb-16 px-margin-desktop min-h-screen relative">
+
+<!-- Arc Reactor Mini-Indicator (Floating UI) -->
+<div class="fixed bottom-14 right-8 z-50 flex items-center gap-3 bg-surface-container-highest/40 backdrop-blur-xl border border-primary/30 px-4 py-2 rounded-full shadow-lg">
+<div class="relative w-6 h-6">
+<div class="absolute inset-0 rounded-full border-2 border-primary/20"></div>
+<div class="absolute inset-0 rounded-full border-2 border-primary border-t-transparent animate-spin"></div>
+<div class="absolute inset-1.5 rounded-full bg-primary arc-pulse"></div>
+</div>
+<span class="font-label-caps text-[10px] text-primary tracking-widest uppercase">Voice Link Active</span>
+</div>
+<section class="mb-12">
+<div class="flex items-end justify-between mb-8">
+<div>
+<h2 class="font-display-lg text-display-lg text-primary mb-2">Neural Nodes</h2>
+<p class="text-on-surface-variant max-w-xl font-body-lg">Active AI agent mesh. Real-time cognitive load balancing and neural throughput monitoring.</p>
+</div>
+<div class="flex gap-4">
+<button class="px-6 py-2 bg-primary text-background font-label-caps text-label-caps rounded-lg hover:shadow-[0_0_20px_rgba(0,242,255,0.4)] transition-all">DEPROVISION AGENT</button>
+<button class="px-6 py-2 border border-primary/30 text-primary font-label-caps text-label-caps rounded-lg hover:bg-primary/10 transition-all">SYNC CLUSTER</button>
+</div>
+</div>
+<!-- Bento Grid of Agent Cards -->
+<div class="grid grid-cols-1 md:grid-cols-3 gap-gutter">
+<!-- Agent Card 1: Sentinel -->
+<div class="glass-panel col-span-1 bg-surface-container-low/60 border border-outline-variant/30 p-6 rounded-xl relative group overflow-hidden">
+<div class="status-scan absolute inset-0 opacity-10 pointer-events-none"></div>
+<div class="flex justify-between items-start mb-6">
+<div class="p-3 bg-primary/10 rounded-lg">
+<span class="material-symbols-outlined text-primary text-3xl">shield_person</span>
+</div>
+<span class="px-2 py-1 border border-primary text-[10px] text-primary font-label-caps rounded">ACTIVE</span>
+</div>
+<h3 class="font-headline-md text-headline-md text-primary mb-1">SENTINEL-7</h3>
+<p class="text-on-surface-variant font-body-sm mb-6">Autonomous security protocol &amp; firewall maintenance agent.</p>
+<div class="space-y-3">
+<div class="flex justify-between text-[11px] font-mono-data text-on-surface-variant uppercase">
+<span>Logic Load</span>
+<span class="text-primary">42%</span>
+</div>
+<div class="h-1 bg-surface-container-highest rounded-full overflow-hidden">
+<div class="h-full bg-primary w-[42%]"></div>
+</div>
+</div>
+</div>
+<!-- Agent Card 2: Oracle (Large) -->
+<div class="glass-panel col-span-1 md:col-span-2 row-span-1 bg-surface-container-low/60 border border-outline-variant/30 p-6 rounded-xl relative overflow-hidden">
+<div class="absolute top-0 right-0 p-8 opacity-5">
+<span class="material-symbols-outlined text-[120px]">cognition</span>
+</div>
+<div class="flex justify-between items-start mb-6">
+<div class="p-3 bg-primary/10 rounded-lg">
+<span class="material-symbols-outlined text-primary text-3xl">auto_awesome</span>
+</div>
+<div class="text-right">
+<span class="block font-mono-data text-primary text-xl">98.4%</span>
+<span class="font-label-caps text-[10px] text-on-surface-variant uppercase">Prediction Accuracy</span>
+</div>
+</div>
+<h3 class="font-headline-md text-headline-md text-primary mb-1">ORACLE-BETA</h3>
+<p class="text-on-surface-variant font-body-sm mb-8 max-w-md">Predictive modeling agent. Currently analyzing 14.2TB of telemetry for system optimization.</p>
+<div class="grid grid-cols-3 gap-6 border-t border-outline-variant/20 pt-6">
+<div>
+<span class="block font-label-caps text-[10px] text-on-surface-variant mb-1">CONTEXT WINDOW</span>
+<span class="font-mono-data text-primary text-sm">128K TOKENS</span>
+</div>
+<div>
+<span class="block font-label-caps text-[10px] text-on-surface-variant mb-1">LATENCY</span>
+<span class="font-mono-data text-primary text-sm">144ms</span>
+</div>
+<div>
+<span class="block font-label-caps text-[10px] text-on-surface-variant mb-1">UPTIME</span>
+<span class="font-mono-data text-primary text-sm">1,204H</span>
+</div>
+</div>
+</div>
+<!-- Agent Card 3: Weaver -->
+<div class="glass-panel bg-surface-container-low/60 border border-outline-variant/30 p-6 rounded-xl relative group">
+<div class="flex justify-between items-start mb-6">
+<div class="p-3 bg-secondary/10 rounded-lg">
+<span class="material-symbols-outlined text-secondary text-3xl">hub</span>
+</div>
+<span class="px-2 py-1 border border-secondary text-[10px] text-secondary font-label-caps rounded">STANDBY</span>
+</div>
+<h3 class="font-headline-md text-headline-md text-secondary mb-1">WEAVER-LINK</h3>
+<p class="text-on-surface-variant font-body-sm mb-6">Multi-modal translation and network topology mapping agent.</p>
+<div class="flex items-center gap-2 text-on-surface-variant font-mono-data text-xs">
+<span class="material-symbols-outlined text-sm">link</span>
+<span>0 Active Connections</span>
+</div>
+</div>
+<!-- Agent Card 4: Ghost -->
+<div class="glass-panel bg-surface-container-low/60 border border-outline-variant/30 p-6 rounded-xl relative group">
+<div class="flex justify-between items-start mb-6">
+<div class="p-3 bg-primary/10 rounded-lg">
+<span class="material-symbols-outlined text-primary text-3xl">visibility_off</span>
+</div>
+<span class="px-2 py-1 border border-primary text-[10px] text-primary font-label-caps rounded">ACTIVE</span>
+</div>
+<h3 class="font-headline-md text-headline-md text-primary mb-1">GHOST-X</h3>
+<p class="text-on-surface-variant font-body-sm mb-6">Stealth monitoring and encrypted data transmission handler.</p>
+<div class="space-y-3">
+<div class="flex justify-between text-[11px] font-mono-data text-on-surface-variant uppercase">
+<span>Cloak Integrity</span>
+<span class="text-primary">99%</span>
+</div>
+<div class="h-1 bg-surface-container-highest rounded-full overflow-hidden">
+<div class="h-full bg-primary w-[99%]"></div>
+</div>
+</div>
+</div>
+<!-- Agent Card 5: Titan -->
+<div class="glass-panel bg-surface-container-low/60 border border-outline-variant/30 p-6 rounded-xl relative group">
+<div class="flex justify-between items-start mb-6">
+<div class="p-3 bg-error/10 rounded-lg">
+<span class="material-symbols-outlined text-error text-3xl">database</span>
+</div>
+<span class="px-2 py-1 border border-error text-[10px] text-error font-label-caps rounded">ALERT</span>
+</div>
+<h3 class="font-headline-md text-headline-md text-error mb-1">TITAN-DB</h3>
+<p class="text-on-surface-variant font-body-sm mb-6">Primary data warehouse manager. Disk I/O exceeding safety limits.</p>
+<button class="w-full py-2 bg-error/20 border border-error/40 text-error font-label-caps text-[10px] rounded hover:bg-error/30 transition-all">RESOLVE CONFLICT</button>
+</div>
+</div>
+</section>
+<!-- List View for Active Agents -->
+<section class="mt-16">
+<h4 class="font-label-caps text-label-caps text-on-surface-variant mb-6 tracking-widest uppercase flex items-center gap-2">
+<span class="w-4 h-[1px] bg-primary"></span>
+                Active Process Streams
+            </h4>
+<div class="space-y-gutter">
+<!-- Agent Row 1 -->
+<div class="flex items-center gap-6 p-4 glass-panel bg-surface-container-lowest/40 border-l-2 border-primary hover:bg-surface-container-low/60 transition-all cursor-pointer group">
+<span class="font-mono-data text-mono-data text-primary w-12 opacity-40">001</span>
+<div class="flex-1 grid grid-cols-12 items-center gap-4">
+<div class="col-span-3">
+<p class="font-headline-md text-sm text-primary">SENTINEL-7</p>
+<p class="text-[10px] font-mono-data text-on-surface-variant">ID: 0x8891-B</p>
+</div>
+<div class="col-span-6 flex items-center gap-4">
+<div class="flex-1 h-1.5 bg-surface-container-highest rounded-full overflow-hidden">
+<div class="h-full bg-primary w-[75%] transition-all duration-1000 group-hover:w-[85%]"></div>
+</div>
+<span class="font-mono-data text-[11px] text-primary w-12">75%</span>
+</div>
+<div class="col-span-3 text-right">
+<span class="text-[10px] font-label-caps px-2 py-0.5 border border-outline-variant text-on-surface-variant">STABLE</span>
+</div>
+</div>
+<span class="material-symbols-outlined text-on-surface-variant group-hover:text-primary transition-colors">more_vert</span>
+</div>
+<!-- Agent Row 2 -->
+<div class="flex items-center gap-6 p-4 glass-panel bg-surface-container-lowest/40 border-l-2 border-primary hover:bg-surface-container-low/60 transition-all cursor-pointer group">
+<span class="font-mono-data text-mono-data text-primary w-12 opacity-40">002</span>
+<div class="flex-1 grid grid-cols-12 items-center gap-4">
+<div class="col-span-3">
+<p class="font-headline-md text-sm text-primary">ORACLE-BETA</p>
+<p class="text-[10px] font-mono-data text-on-surface-variant">ID: 0x1292-C</p>
+</div>
+<div class="col-span-6 flex items-center gap-4">
+<div class="flex-1 h-1.5 bg-surface-container-highest rounded-full overflow-hidden">
+<div class="h-full bg-primary w-[32%] transition-all duration-1000 group-hover:w-[45%]"></div>
+</div>
+<span class="font-mono-data text-[11px] text-primary w-12">32%</span>
+</div>
+<div class="col-span-3 text-right">
+<span class="text-[10px] font-label-caps px-2 py-0.5 border border-outline-variant text-on-surface-variant">PREDICTING</span>
+</div>
+</div>
+<span class="material-symbols-outlined text-on-surface-variant group-hover:text-primary transition-colors">more_vert</span>
+</div>
+<!-- Agent Row 3 -->
+<div class="flex items-center gap-6 p-4 glass-panel bg-surface-container-lowest/40 border-l-2 border-primary hover:bg-surface-container-low/60 transition-all cursor-pointer group">
+<span class="font-mono-data text-mono-data text-primary w-12 opacity-40">003</span>
+<div class="flex-1 grid grid-cols-12 items-center gap-4">
+<div class="col-span-3">
+<p class="font-headline-md text-sm text-primary">GHOST-X</p>
+<p class="text-[10px] font-mono-data text-on-surface-variant">ID: 0x0014-Z</p>
+</div>
+<div class="col-span-6 flex items-center gap-4">
+<div class="flex-1 h-1.5 bg-surface-container-highest rounded-full overflow-hidden">
+<div class="h-full bg-primary w-[12%] transition-all duration-1000 group-hover:w-[20%]"></div>
+</div>
+<span class="font-mono-data text-[11px] text-primary w-12">12%</span>
+</div>
+<div class="col-span-3 text-right">
+<span class="text-[10px] font-label-caps px-2 py-0.5 border border-outline-variant text-on-surface-variant">STEALTH</span>
+</div>
+</div>
+<span class="material-symbols-outlined text-on-surface-variant group-hover:text-primary transition-colors">more_vert</span>
+</div>
+</div>
+</section>
+</main>
+<!-- Footer -->
+<footer class="fixed bottom-0 w-full z-50 bg-surface-container-lowest/80 backdrop-blur-md border-t border-primary/20 shadow-[0_-4px_12px_rgba(0,242,255,0.1)] flex justify-between items-center px-margin-desktop h-10 overflow-hidden">
+<div class="flex items-center gap-gutter">
+<span class="font-mono-data text-mono-data text-on-surface-variant">A.R.V.I.S. CORE - ENCRYPTED TELEMETRY STREAM</span>
+<div class="w-2 h-2 bg-primary rounded-full animate-pulse"></div>
+</div>
+<div class="flex gap-8">
+<span class="font-mono-data text-mono-data text-on-surface-variant hover:text-primary transition-colors cursor-pointer">System Logs</span>
+<span class="font-mono-data text-mono-data text-on-surface-variant hover:text-primary transition-colors cursor-pointer">Encryption Key: 0x88F</span>
+<span class="font-mono-data text-mono-data text-on-surface-variant hover:text-primary transition-colors cursor-pointer">Uptime: 99.9%</span>
+</div>
+</footer>
+<script>
+        // Micro-interactions for Agent Cards
+        document.querySelectorAll('.glass-panel').forEach(panel => {
+            panel.addEventListener('mousemove', (e) => {
+                const rect = panel.getBoundingClientRect();
+                const x = e.clientX - rect.left;
+                const y = e.clientY - rect.top;
+                panel.style.setProperty('--mouse-x', `${x}px`);
+                panel.style.setProperty('--mouse-y', `${y}px`);
+            });
+        });
+    </script>
+</body></html>

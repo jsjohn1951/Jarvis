@@ -1,0 +1,26 @@
+# Models — never commit GGUF blobs
+*.gguf
+models/*.gguf
+
+# TTS — venv + Kokoro model blobs
+tts/.venv/
+tts/*.onnx
+tts/*.bin
+
+# Node
+orchestrator/node_modules/
+orchestrator/dist/
+*.log
+
+# Swift / Xcode
+app/Jarvis.xcodeproj/
+app/.build/
+app/DerivedData/
+*.xcuserstate
+
+# macOS
+.DS_Store
+
+# Secrets
+.env
+*.local

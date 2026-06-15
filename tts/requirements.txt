@@ -1,0 +1,4 @@
+kokoro-onnx
+soundfile
+fastapi
+uvicorn

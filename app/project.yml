@@ -1,0 +1,33 @@
+name: Jarvis
+options:
+  bundleIdPrefix: com.jarvis
+  deploymentTarget:
+    macOS: "26.0"
+  createIntermediateGroups: true
+settings:
+  base:
+    SWIFT_VERSION: "6.0"
+    MARKETING_VERSION: "0.1.0"
+    CURRENT_PROJECT_VERSION: "1"
+    ENABLE_HARDENED_RUNTIME: true
+    # Local dev: ad-hoc sign so it runs without a paid signing identity.
+    CODE_SIGN_IDENTITY: "-"
+    CODE_SIGN_STYLE: Manual
+targets:
+  Jarvis:
+    type: application
+    platform: macOS
+    sources:
+      - Jarvis
+    info:
+      path: Jarvis/Info.plist
+      properties:
+        LSUIElement: true
+        NSMicrophoneUsageDescription: "Jarvis listens for your voice commands and the \"Hey Jarvis\" wake word, on-device."
+        NSSpeechRecognitionUsageDescription: "Jarvis transcribes your spoken commands on-device using Apple's Speech framework."
+    settings:
+      base:
+        PRODUCT_BUNDLE_IDENTIFIER: com.jarvis.app
+        CODE_SIGN_ENTITLEMENTS: Jarvis/Jarvis.entitlements
+        GENERATE_INFOPLIST_FILE: false
+        ASSETCATALOG_COMPILER_GENERATE_ASSET_SYMBOLS: false

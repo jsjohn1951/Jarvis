@@ -1,0 +1,491 @@
+<!DOCTYPE html>
+
+<html class="dark" lang="en"><head>
+<meta charset="utf-8"/>
+<meta content="width=device-width, initial-scale=1.0" name="viewport"/>
+<title>A.R.V.I.S. OS - ACTIVE TASK</title>
+<script src="https://cdn.tailwindcss.com?plugins=forms,container-queries"></script>
+<script src="https://cdnjs.cloudflare.com/ajax/libs/three.js/0.160.0/three.min.js"></script>
+<link href="https://fonts.googleapis.com/css2?family=Space+Grotesk:wght@300;500;700&amp;family=JetBrains+Mono:wght@400;500&amp;family=Inter:wght@400;500&amp;family=Material+Symbols+Outlined:wght,FILL@100..700,0..1&amp;display=swap" rel="stylesheet"/>
+<style>
+        .material-symbols-outlined {
+            font-variation-settings: 'FILL' 0, 'wght' 300, 'GRAD' 0, 'opsz' 24;
+        }
+        .glass-panel {
+            background: rgba(15, 19, 29, 0.6);
+            backdrop-filter: blur(20px);
+            border: 1px solid rgba(0, 219, 231, 0.1);
+        }
+        .hud-bracket-tl { border-top: 2px solid #00dbe7; border-left: 2px solid #00dbe7; width: 12px; height: 12px; position: absolute; top: -1px; left: -1px; }
+        .hud-bracket-tr { border-top: 2px solid #00dbe7; border-right: 2px solid #00dbe7; width: 12px; height: 12px; position: absolute; top: -1px; right: -1px; }
+        .hud-bracket-bl { border-bottom: 2px solid #00dbe7; border-left: 2px solid #00dbe7; width: 12px; height: 12px; position: absolute; bottom: -1px; left: -1px; }
+        .hud-bracket-br { border-bottom: 2px solid #00dbe7; border-right: 2px solid #00dbe7; width: 12px; height: 12px; position: absolute; bottom: -1px; right: -1px; }
+        
+        @keyframes scanline {
+            0% { transform: translateY(-100%); }
+            100% { transform: translateY(100%); }
+        }
+        .scanline-effect::after {
+            content: "";
+            position: absolute;
+            top: 0; left: 0; right: 0; bottom: 0;
+            background: linear-gradient(to bottom, transparent 0%, rgba(0, 219, 231, 0.05) 50%, transparent 100%);
+            animation: scanline 4s linear infinite;
+            pointer-events: none;
+        }
+        .grid-bg {
+            background-image: linear-gradient(rgba(0, 219, 231, 0.03) 1px, transparent 1px), linear-gradient(90deg, rgba(0, 219, 231, 0.03) 1px, transparent 1px);
+            background-size: 32px 32px;
+        }
+        .custom-scrollbar::-webkit-scrollbar { width: 4px; }
+        .custom-scrollbar::-webkit-scrollbar-track { background: transparent; }
+        .custom-scrollbar::-webkit-scrollbar-thumb { background: rgba(0, 219, 231, 0.2); }
+    </style>
+<script id="tailwind-config">
+        tailwind.config = {
+            darkMode: "class",
+            theme: {
+                extend: {
+                    "colors": {
+                        "inverse-on-surface": "#2c303b",
+                        "secondary": "#98cbff",
+                        "surface": "#0f131d",
+                        "secondary-fixed": "#cfe5ff",
+                        "on-secondary-fixed-variant": "#004a77",
+                        "surface-variant": "#313540",
+                        "outline-variant": "#3a494b",
+                        "on-primary-container": "#006a71",
+                        "primary": "#e1fdff",
+                        "tertiary-container": "#ffd0cb",
+                        "on-tertiary-container": "#c20018",
+                        "primary-fixed-dim": "#00dbe7",
+                        "on-primary-fixed": "#002022",
+                        "surface-bright": "#353944",
+                        "tertiary": "#fff5f4",
+                        "secondary-container": "#00a2fd",
+                        "tertiary-fixed": "#ffdad6",
+                        "on-primary-fixed-variant": "#004f54",
+                        "on-secondary-container": "#003558",
+                        "on-tertiary-fixed": "#410003",
+                        "error-container": "#93000a",
+                        "outline": "#849495",
+                        "on-surface": "#dfe2f1",
+                        "surface-container-lowest": "#0a0e18",
+                        "on-error": "#690005",
+                        "on-error-container": "#ffdad6",
+                        "primary-fixed": "#74f5ff",
+                        "on-surface-variant": "#b9cacb",
+                        "background": "#0f131d",
+                        "inverse-surface": "#dfe2f1",
+                        "surface-container-highest": "#313540",
+                        "on-tertiary": "#680008",
+                        "primary-container": "#00f2ff",
+                        "on-primary": "#00363a",
+                        "surface-container": "#1c1f2a",
+                        "tertiary-fixed-dim": "#ffb3ac",
+                        "inverse-primary": "#00696f",
+                        "error": "#ffb4ab",
+                        "surface-container-high": "#262a35",
+                        "on-secondary-fixed": "#001d33",
+                        "surface-tint": "#00dbe7",
+                        "surface-dim": "#0f131d",
+                        "secondary-fixed-dim": "#98cbff",
+                        "on-tertiary-fixed-variant": "#930010",
+                        "surface-container-low": "#171b26",
+                        "on-secondary": "#003354",
+                        "on-background": "#dfe2f1"
+                    },
+                    "borderRadius": {
+                        "DEFAULT": "0.125rem",
+                        "lg": "0.25rem",
+                        "xl": "0.5rem",
+                        "full": "0.75rem"
+                    },
+                    "spacing": {
+                        "unit": "4px",
+                        "stack-lg": "32px",
+                        "panel-padding": "24px",
+                        "stack-md": "16px",
+                        "gutter": "16px",
+                        "stack-sm": "8px",
+                        "container-margin": "32px"
+                    },
+                    "fontFamily": {
+                        "display-lg": ["Space Grotesk"],
+                        "label-caps": ["JetBrains Mono"],
+                        "data-mono": ["JetBrains Mono"],
+                        "headline-md": ["Space Grotesk"],
+                        "body-base": ["Inter"]
+                    }
+                },
+            },
+        }
+    </script>
+</head>
+<body class="bg-background text-on-surface font-body-base selection:bg-primary-fixed-dim/30 selection:text-primary-fixed grid-bg min-h-screen overflow-hidden">
+<!-- TopNavBar -->
+<header class="fixed top-0 w-full bg-surface/60 backdrop-blur-xl border-b border-outline-variant/20 shadow-[0_0_15px_rgba(0,219,231,0.2)] flex justify-between items-center px-container-margin py-stack-sm z-50">
+<div class="flex items-center gap-stack-md">
+<span class="font-display-lg text-[32px] text-primary-fixed-dim tracking-tighter">A.R.V.I.S. OS</span>
+<div class="h-6 w-px bg-outline-variant/30"></div>
+<span class="font-label-caps text-label-caps text-primary-fixed-dim">TASK_EXECUTION_MODE</span>
+</div>
+<div class="flex items-center gap-stack-md">
+<div class="flex gap-stack-sm mr-stack-md">
+<button class="p-2 text-on-surface-variant hover:bg-primary/10 hover:text-primary-fixed transition-all scale-95 active:scale-90">
+<span class="material-symbols-outlined">sensors</span>
+</button>
+<button class="p-2 text-on-surface-variant hover:bg-primary/10 hover:text-primary-fixed transition-all scale-95 active:scale-90">
+<span class="material-symbols-outlined">notifications_active</span>
+</button>
+<button class="p-2 text-on-surface-variant hover:bg-primary/10 hover:text-primary-fixed transition-all scale-95 active:scale-90">
+<span class="material-symbols-outlined">settings</span>
+</button>
+</div>
+<div class="flex items-center gap-stack-sm bg-surface-container-high px-stack-sm py-1 border border-outline-variant/30">
+<div class="w-2 h-2 rounded-full bg-primary-fixed-dim shadow-[0_0_8px_#00dbe7]"></div>
+<span class="font-label-caps text-label-caps">SYSTEM_STABLE</span>
+</div>
+</div>
+</header>
+<!-- SideNavBar -->
+<aside class="fixed left-0 top-0 h-full w-[280px] bg-surface-container-lowest/40 backdrop-blur-2xl border-r border-outline-variant/30 shadow-2xl flex flex-col py-panel-padding z-40">
+<div class="px-gutter mb-stack-lg mt-16">
+<div class="flex items-center gap-stack-sm mb-stack-sm">
+<div class="w-10 h-10 border border-primary-fixed-dim/30 p-0.5 relative">
+<img alt="OPERATOR-01" class="w-full h-full object-cover" src="https://lh3.googleusercontent.com/aida-public/AB6AXuAhWmcDkteg5FyYEJxklBRzjm6np0C_RGrRY_K-vyMGHA-cLvBFEg2PQlBj3InYswuOVwfDuQLwMZy9W0gz_ErQMKxeVtpyowO_z788v-mQWktOxXWnGh72JSZ9ioq6lv8ZdLq1T5vlWnZHHjdBr_IqqCJ3x7hUmXOALSM-OXi9pKcoltN874UJlGq_2mtpQfXFE79MLXBKYsRzE8pDjnJm1taJ1H_1unQ0sydJi0xRP8OTxJ4iX_-wgGZHizDMHXofi9EIgkZiVQAw"/>
+<div class="hud-bracket-tl"></div><div class="hud-bracket-br"></div>
+</div>
+<div>
+<div class="font-headline-md text-headline-md text-primary text-sm leading-tight">OPERATOR-01</div>
+<div class="font-label-caps text-[10px] text-primary-fixed-dim/60">STATUS: ENCRYPTED</div>
+</div>
+</div>
+</div>
+<nav class="flex-1 px-4 space-y-2">
+<a class="flex items-center gap-stack-md px-stack-md py-4 text-on-surface-variant hover:bg-surface-variant/50 hover:text-primary-fixed transition-colors translate-x-1 duration-300 font-label-caps text-label-caps" href="#">
+<span class="material-symbols-outlined">grid_view</span> DASHBOARD
+            </a>
+<a class="flex items-center gap-stack-md px-stack-md py-4 text-on-surface-variant hover:bg-surface-variant/50 hover:text-primary-fixed transition-colors translate-x-1 duration-300 font-label-caps text-label-caps" href="#">
+<span class="material-symbols-outlined">smart_toy</span> AGENTS
+            </a>
+<a class="flex items-center gap-stack-md px-stack-md py-4 bg-primary-container/20 text-primary-fixed-dim border-r-2 border-primary-fixed-dim font-label-caps text-label-caps" href="#">
+<span class="material-symbols-outlined">assignment_late</span> TASKS
+            </a>
+<a class="flex items-center gap-stack-md px-stack-md py-4 text-on-surface-variant hover:bg-surface-variant/50 hover:text-primary-fixed transition-colors translate-x-1 duration-300 font-label-caps text-label-caps" href="#">
+<span class="material-symbols-outlined">memory</span> SYSTEM
+            </a>
+</nav>
+<div class="px-gutter mt-auto space-y-4">
+<button class="w-full border border-primary-fixed-dim text-primary-fixed-dim py-stack-md font-label-caps text-label-caps hover:bg-primary-fixed-dim/10 transition-all uppercase flex items-center justify-center gap-2">
+<span class="material-symbols-outlined text-sm">mic</span> ACTIVATE VOICE
+            </button>
+<div class="pt-stack-md border-t border-outline-variant/20 flex gap-4">
+<button class="text-outline font-label-caps text-[10px] hover:text-primary transition-opacity">HELP</button>
+<button class="text-outline font-label-caps text-[10px] hover:text-primary transition-opacity">LOGOUT</button>
+</div>
+</div>
+</aside>
+<!-- Main Content Area -->
+<main class="ml-[280px] mt-16 p-stack-lg h-[calc(100vh-64px)] relative overflow-hidden">
+<!-- Task Header Banner -->
+<div class="flex justify-between items-end mb-stack-lg">
+<div>
+<div class="flex items-center gap-stack-sm mb-1">
+<span class="px-2 py-0.5 border border-primary-fixed-dim/40 text-[10px] font-label-caps text-primary-fixed-dim bg-primary-fixed-dim/5">TASK-ID: GEN-VID-094</span>
+<span class="w-2 h-2 rounded-full bg-primary-fixed-dim animate-pulse"></span>
+<span class="text-primary-fixed-dim font-label-caps text-label-caps">ACTIVE_PROCESSING</span>
+</div>
+<h1 class="font-display-lg text-headline-md text-primary uppercase">Generating Cinematic Video: "NEON_DREAMS_01"</h1>
+<p class="font-data-mono text-on-surface-variant text-sm">AGENT: CINEMA-BOT-V3 // DIRECTIVE: ULTRA-REALISTIC 4K RENDER</p>
+</div>
+<div class="text-right">
+<div class="font-label-caps text-[12px] text-outline mb-1">ESTIMATED COMPLETION</div>
+<div class="font-data-mono text-headline-md text-primary-fixed-dim">00:14:42:08</div>
+</div>
+</div>
+<div class="grid grid-cols-12 gap-stack-lg h-[calc(100%-120px)]">
+<!-- Left Console Column -->
+<div class="col-span-3 flex flex-col gap-stack-md">
+<!-- Console Log Panel -->
+<div class="flex-1 glass-panel relative p-stack-md flex flex-col overflow-hidden">
+<div class="hud-bracket-tl"></div><div class="hud-bracket-tr"></div>
+<div class="flex justify-between items-center mb-stack-sm border-b border-outline-variant/30 pb-2">
+<span class="font-label-caps text-label-caps text-primary-fixed-dim flex items-center gap-2">
+<span class="material-symbols-outlined text-sm">terminal</span>
+                            LIVE_CONSOLE_LOG
+                        </span>
+<span class="font-data-mono text-[10px] text-outline">SEC-01</span>
+</div>
+<div class="flex-1 font-data-mono text-[12px] text-on-surface-variant/80 overflow-y-auto space-y-1 custom-scrollbar" id="console-stream">
+<div class="text-primary-fixed-dim/60">[09:21:04] INITIALIZING NEURAL_RENDER_ENGINE...</div>
+<div class="text-primary-fixed-dim/60">[09:21:05] ALLOCATING 12GB VRAM...</div>
+<div class="text-on-surface">[09:21:06] Loading frame buffer 0-250...</div>
+<div class="text-on-surface">[09:21:08] Appyling temporal denoising...</div>
+<div class="text-secondary">[09:21:10] AGENT: Tracking 1,024 light sources...</div>
+<div class="text-on-surface">[09:21:12] Frame 42 rendered (0.8s)</div>
+<div class="text-on-surface">[09:21:13] Frame 43 rendered (0.9s)</div>
+<div class="text-on-surface">[09:21:14] Frame 44 rendered (0.8s)</div>
+<div class="text-error">[09:21:15] WARNING: Texture cache miss at index 77</div>
+<div class="text-on-surface">[09:21:16] Recovering...</div>
+<div class="text-on-surface">[09:21:17] Frame 45 rendered (1.2s)</div>
+<div class="animate-pulse text-primary-fixed-dim">_</div>
+</div>
+</div>
+<!-- Metrics Panel -->
+<div class="h-32 glass-panel p-stack-md relative grid grid-cols-2 gap-4">
+<div class="hud-bracket-bl"></div><div class="hud-bracket-br"></div>
+<div class="flex flex-col justify-center">
+<span class="font-label-caps text-[10px] text-outline uppercase">CPU Cluster Load</span>
+<div class="flex items-end gap-1 h-8">
+<div class="flex-1 bg-primary-fixed-dim/20 h-[60%] border-t border-primary-fixed-dim/40"></div>
+<div class="flex-1 bg-primary-fixed-dim/20 h-[80%] border-t border-primary-fixed-dim/40"></div>
+<div class="flex-1 bg-primary-fixed-dim/20 h-[40%] border-t border-primary-fixed-dim/40"></div>
+<div class="flex-1 bg-primary-fixed-dim h-[90%] shadow-[0_0_10px_#00dbe7]"></div>
+</div>
+<span class="font-data-mono text-sm text-primary-fixed-dim mt-1">94.2%</span>
+</div>
+<div class="flex flex-col justify-center">
+<span class="font-label-caps text-[10px] text-outline uppercase">Network Stream</span>
+<div class="h-8 flex items-center">
+<svg class="w-full h-full text-secondary" viewbox="0 0 100 20">
+<path d="M0 15 Q 10 5, 20 15 T 40 10 T 60 18 T 80 5 T 100 12" fill="none" stroke="currentColor" stroke-width="1"></path>
+</svg>
+</div>
+<span class="font-data-mono text-sm text-secondary mt-1">1.2 GB/s</span>
+</div>
+</div>
+</div>
+<!-- Center Preview Column -->
+<div class="col-span-6 flex flex-col gap-stack-md">
+<!-- Preview Window -->
+<div class="flex-1 glass-panel relative overflow-hidden flex items-center justify-center scanline-effect group">
+<div class="hud-bracket-tl"></div><div class="hud-bracket-tr"></div><div class="hud-bracket-bl"></div><div class="hud-bracket-br"></div>
+<img alt="Cinematic Preview" class="absolute inset-0 w-full h-full object-cover opacity-80 transition-transform duration-700 group-hover:scale-105" src="https://lh3.googleusercontent.com/aida-public/AB6AXuBT1d-u0K9GrN1I0yiFAhw1TYwQf-vElOI3x7-2PM_gRWMlbj5MN8aREWXZHKm3m1rSHzky8Xn37YtTMVKcMCfoPZe6fJldYoC_01a_Rj7ZhrdMrLHg3tzG_OX8ufUIlV0oGiWZwlbmZrmhkQJdDVOUcR3qiPEviY4dM6kebdp3o1adGZyGTqYgJyRRBWZvON4pXT1k7QunNeemNQ53nWv8cNUmok0PMNBnlXOu5oHsWdYCc365sb1RVQqYI9xCRT10a5dOguI4I_LP"/>
+<!-- Wireframe Overlay -->
+<div class="absolute inset-0 border border-primary-fixed-dim/20 pointer-events-none flex items-center justify-center">
+<div class="w-1/2 h-1/2 border border-dashed border-primary-fixed-dim/30 flex items-center justify-center">
+<span class="material-symbols-outlined text-[120px] text-primary-fixed-dim/10 opacity-50">movie_filter</span>
+</div>
+<!-- Dynamic Corner Labels -->
+<span class="absolute top-4 left-4 font-label-caps text-[10px] text-primary-fixed-dim bg-background/80 px-2 py-1">VIEWPORT: PRIMARY_CAM_01</span>
+<span class="absolute top-4 right-4 font-label-caps text-[10px] text-primary-fixed-dim bg-background/80 px-2 py-1">REC [●] 00:02:14:15</span>
+</div>
+<!-- Progress Overlays -->
+<div class="absolute bottom-6 left-6 right-6 flex flex-col gap-2">
+<div class="flex justify-between font-label-caps text-[10px] text-primary-fixed-dim">
+<span>TASK PROGRESS: 68%</span>
+<span>RENDER QUEUE: 42/120</span>
+</div>
+<div class="h-1.5 w-full bg-surface-container-highest/50 border border-outline-variant/30 p-0.5">
+<div class="h-full bg-primary-fixed-dim shadow-[0_0_15px_#00dbe7]" style="width: 68%"></div>
+</div>
+</div>
+<!-- Interaction Hint -->
+<div class="absolute inset-0 flex items-center justify-center opacity-0 group-hover:opacity-100 transition-opacity bg-background/40">
+<button class="bg-primary-fixed-dim text-on-primary-fixed px-stack-lg py-stack-md font-label-caps text-label-caps hover:bg-primary-fixed transition-all flex items-center gap-2">
+<span class="material-symbols-outlined">fullscreen</span> ENTER_IMMERSIVE_VIEW
+                         </button>
+</div>
+</div>
+<!-- Control Bar -->
+<div class="h-20 flex gap-stack-md">
+<button class="flex-1 glass-panel hover:bg-primary-fixed-dim/10 transition-all border border-primary-fixed-dim/30 flex items-center justify-center gap-stack-md group">
+<span class="w-10 h-10 rounded-full border border-primary-fixed-dim flex items-center justify-center text-primary-fixed-dim group-hover:bg-primary-fixed-dim group-hover:text-on-primary-fixed transition-all">
+<span class="material-symbols-outlined">mic</span>
+</span>
+<div class="text-left">
+<div class="font-label-caps text-label-caps text-primary-fixed-dim">VOICE OVERRIDE</div>
+<div class="font-data-mono text-[10px] text-outline">PROVIDE LIVE INSTRUCTIONS</div>
+</div>
+</button>
+<button class="w-32 glass-panel hover:bg-error/10 transition-all border border-error/30 flex flex-col items-center justify-center text-error group">
+<span class="material-symbols-outlined group-hover:scale-110 transition-transform">cancel</span>
+<span class="font-label-caps text-[10px] mt-1">ABORT</span>
+</button>
+<button class="w-32 glass-panel hover:bg-secondary/10 transition-all border border-secondary/30 flex flex-col items-center justify-center text-secondary group">
+<span class="material-symbols-outlined group-hover:scale-110 transition-transform">pause</span>
+<span class="font-label-caps text-[10px] mt-1">SUSPEND</span>
+</button>
+</div>
+</div>
+<!-- Right Agent Hologram Column -->
+<div class="col-span-3 flex flex-col gap-stack-md">
+<div class="flex-1 glass-panel relative flex flex-col overflow-hidden group shadow-[0_0_20px_rgba(0,219,231,0.05)] border-primary-fixed-dim/20">
+<div class="hud-bracket-tl"></div><div class="hud-bracket-tr"></div><div class="hud-bracket-bl"></div><div class="hud-bracket-br"></div>
+<!-- Panel Header -->
+<div class="flex justify-between items-center p-stack-sm border-b border-outline-variant/30">
+<div class="flex items-center gap-2">
+<div class="w-2 h-2 rounded-full bg-primary-fixed-dim animate-ping"></div>
+<span class="font-label-caps text-[10px] text-primary-fixed-dim tracking-widest">SCANNING...</span>
+</div>
+<span class="bg-primary-fixed-dim/10 border border-primary-fixed-dim/40 px-2 py-0.5 font-label-caps text-[9px] text-primary-fixed-dim">ID: AGENT-V3</span>
+</div>
+<!-- 3D Container -->
+<div class="flex-1 relative" id="hologram-container">
+<!-- UI Overlays for Hologram -->
+<div class="absolute inset-0 pointer-events-none opacity-40">
+<div class="absolute top-4 left-4 font-data-mono text-[8px] text-primary-fixed-dim">NEURAL_SYNC: 99.8%</div>
+<div class="absolute bottom-4 right-4 font-data-mono text-[8px] text-primary-fixed-dim">COORD: X.44 Y.82 Z.11</div>
+<div class="absolute inset-0 flex items-center justify-center">
+<div class="w-48 h-48 border border-primary-fixed-dim/10 rounded-full animate-[spin_10s_linear_infinite]"></div>
+<div class="absolute w-56 h-56 border border-dashed border-primary-fixed-dim/5 rounded-full animate-[spin_20s_linear_infinite_reverse]"></div>
+</div>
+</div>
+</div>
+<!-- Panel Footer Stats -->
+<div class="p-stack-sm bg-primary-fixed-dim/5 border-t border-outline-variant/20">
+<div class="flex justify-between font-label-caps text-[9px] text-outline">
+<span>CORE_LOAD</span>
+<span>7.2ms LATENCY</span>
+</div>
+<div class="mt-1 h-1 w-full bg-surface-container-highest/50">
+<div class="h-full bg-primary-fixed-dim w-[85%]"></div>
+</div>
+</div>
+</div>
+<!-- Secondary Data Panel -->
+<div class="h-32 glass-panel p-stack-md relative overflow-hidden">
+<div class="hud-bracket-tl"></div><div class="hud-bracket-tr"></div>
+<span class="font-label-caps text-[10px] text-primary-fixed-dim mb-2 block">VECTOR_TRAJECTORY</span>
+<div class="flex items-center justify-center h-16">
+<div class="relative w-full h-full flex items-center justify-center">
+<svg class="w-full h-full text-primary-fixed-dim/40" viewbox="0 0 100 40">
+<line stroke="currentColor" stroke-dasharray="2,2" x1="0" x2="100" y1="20" y2="20"></line>
+<path class="text-primary-fixed-dim" d="M10 30 Q 30 10 50 30 T 90 20" fill="none" stroke="currentColor" stroke-width="1.5"></path>
+</svg>
+</div>
+</div>
+</div>
+</div>
+</div>
+</main>
+<!-- Footer -->
+<footer class="fixed bottom-0 right-0 w-full flex justify-end p-gutter pointer-events-none z-50">
+<div class="flex items-center gap-stack-lg font-data-mono text-data-mono text-outline opacity-80">
+<div class="flex gap-4 pointer-events-auto">
+<a class="hover:text-primary transition-opacity" href="#">ENCRYPTION_LOGS</a>
+<a class="hover:text-primary transition-opacity" href="#">API_V2_DOCS</a>
+</div>
+<span>© 2024 NEXUS GEN-AI SYSTEMS</span>
+</div>
+</footer>
+<script>
+        // Three.js Hologram Integration
+        const container = document.getElementById('hologram-container');
+        const width = container.clientWidth || 300;
+        const height = container.clientHeight || 400;
+
+        const scene = new THREE.Scene();
+        const camera = new THREE.PerspectiveCamera(75, width / height, 0.1, 1000);
+        const renderer = new THREE.WebGLRenderer({ alpha: true, antialias: true });
+        renderer.setSize(width, height);
+        renderer.setPixelRatio(window.devicePixelRatio);
+        container.appendChild(renderer.domElement);
+
+        const hologramGroup = new THREE.Group();
+        scene.add(hologramGroup);
+
+        const headGeo = new THREE.BoxGeometry(0.5, 0.6, 0.5);
+        const torsoGeo = new THREE.BoxGeometry(1.2, 1.5, 0.6);
+        const shoulderGeo = new THREE.CylinderGeometry(0.2, 0.2, 1.6, 8);
+        shoulderGeo.rotateZ(Math.PI / 2);
+
+        const material = new THREE.MeshPhongMaterial({
+          color: 0x00f2ff,
+          wireframe: true,
+          transparent: true,
+          opacity: 0.8,
+          emissive: 0x00f2ff,
+          emissiveIntensity: 0.5
+        });
+
+        const head = new THREE.Mesh(headGeo, material);
+        head.position.y = 1.2;
+        hologramGroup.add(head);
+
+        const torso = new THREE.Mesh(torsoGeo, material);
+        torso.position.y = 0.2;
+        hologramGroup.add(torso);
+
+        const shoulders = new THREE.Mesh(shoulderGeo, material);
+        shoulders.position.y = 0.8;
+        hologramGroup.add(shoulders);
+
+        const ringGeo = new THREE.TorusGeometry(1.5, 0.02, 16, 100);
+        ringGeo.rotateX(Math.PI / 2);
+        const ring1 = new THREE.Mesh(ringGeo, material);
+        hologramGroup.add(ring1);
+
+        const ring2 = new THREE.Mesh(new THREE.TorusGeometry(1.8, 0.01, 16, 100), material);
+        ring2.rotateX(Math.PI / 2);
+        ring2.position.y = -0.5;
+        hologramGroup.add(ring2);
+
+        const ambientLight = new THREE.AmbientLight(0xffffff, 0.5);
+        scene.add(ambientLight);
+        const pointLight = new THREE.PointLight(0x00f2ff, 1);
+        pointLight.position.set(5, 5, 5);
+        scene.add(pointLight);
+
+        camera.position.z = 5;
+        camera.position.y = 0.5;
+
+        function animateHologram() {
+          requestAnimationFrame(animateHologram);
+          hologramGroup.rotation.y += 0.01;
+          ring1.rotation.z += 0.02;
+          ring2.rotation.z -= 0.01;
+          hologramGroup.position.y = Math.sin(Date.now() * 0.002) * 0.1;
+          renderer.render(scene, camera);
+        }
+
+        window.addEventListener('resize', () => {
+          const w = container.clientWidth || 300;
+          const h = container.clientHeight || 400;
+          renderer.setSize(w, h);
+          camera.aspect = w / h;
+          camera.updateProjectionMatrix();
+        });
+
+        animateHologram();
+
+        // Console simulation
+        const consoleElement = document.getElementById('console-stream');
+        const messages = [
+            "Optimizing geometry meshes...",
+            "Calculating volumetric fog scattering...",
+            "Agent cinema-bot-v3: Submitting frame data to cluster.",
+            "Refining particle simulations (Fluid-01)...",
+            "Checking data parity on block 992-A...",
+            "Applying motion blur vectors...",
+            "Buffer health: 98.4%",
+            "Adjusting exposure based on histogram...",
+            "Synthesizing ambient audio layer..."
+        ];
+
+        setInterval(() => {
+            const msg = messages[Math.floor(Math.random() * messages.length)];
+            const time = new Date().toLocaleTimeString('en-GB', { hour12: false });
+            const line = document.createElement('div');
+            line.innerHTML = `<span class="text-on-surface-variant/40">[${time}]</span> ${msg}`;
+            line.classList.add('animate-in', 'fade-in', 'duration-500');
+            consoleElement.appendChild(line);
+            
+            if (consoleElement.children.length > 50) {
+                consoleElement.removeChild(consoleElement.firstChild);
+            }
+            consoleElement.scrollTop = consoleElement.scrollHeight;
+        }, 2000);
+
+        // Simple reactive UI logic
+        document.querySelectorAll('button').forEach(btn => {
+            btn.addEventListener('mousedown', () => {
+                btn.style.transform = 'scale(0.95)';
+            });
+            btn.addEventListener('mouseup', () => {
+                btn.style.transform = 'scale(1)';
+            });
+        });
+    </script>
+</body></html>

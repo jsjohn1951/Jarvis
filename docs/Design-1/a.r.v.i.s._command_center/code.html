@@ -1,0 +1,422 @@
+<!DOCTYPE html>
+
+<html class="dark" lang="en"><head>
+<meta charset="utf-8"/>
+<meta content="width=device-width, initial-scale=1.0" name="viewport"/>
+<title>A.R.V.I.S. OS | Command Dashboard</title>
+<script src="https://cdn.tailwindcss.com?plugins=forms,container-queries"></script>
+<link href="https://fonts.googleapis.com/css2?family=Space+Grotesk:wght@300;400;500;700&amp;family=JetBrains+Mono:wght@400;500&amp;family=Inter:wght@300;400;600&amp;family=Material+Symbols+Outlined:wght,FILL@100..700,0..1&amp;display=swap" rel="stylesheet"/>
+<link href="https://fonts.googleapis.com/css2?family=Material+Symbols+Outlined:wght,FILL@100..700,0..1&amp;display=swap" rel="stylesheet"/>
+<link href="https://fonts.googleapis.com/css2?family=Inter:wght@100..900&amp;family=JetBrains+Mono:wght@100..900&amp;family=Space+Grotesk:wght@100..900&amp;display=swap" rel="stylesheet"/>
+<style>
+        .material-symbols-outlined {
+            font-variation-settings: 'FILL' 0, 'wght' 400, 'GRAD' 0, 'opsz' 24;
+        }
+        .glass-panel {
+            background: rgba(15, 19, 29, 0.6);
+            backdrop-filter: blur(20px);
+            border: 1px solid rgba(0, 219, 231, 0.1);
+        }
+        .glass-panel:hover {
+            border-color: rgba(0, 219, 231, 0.3);
+            box-shadow: 0 0 15px rgba(0, 219, 231, 0.1);
+        }
+        .scanning-line {
+            width: 100%;
+            height: 2px;
+            background: linear-gradient(90deg, transparent, #00dbe7, transparent);
+            position: absolute;
+            top: 0;
+            animation: scan 3s linear infinite;
+        }
+        @keyframes scan {
+            0% { top: 0; opacity: 0; }
+            50% { opacity: 1; }
+            100% { top: 100%; opacity: 0; }
+        }
+        .grid-bg {
+            background-image: 
+                linear-gradient(rgba(0, 219, 231, 0.03) 1px, transparent 1px),
+                linear-gradient(90deg, rgba(0, 219, 231, 0.03) 1px, transparent 1px);
+            background-size: 32px 32px;
+        }
+        .hologram-ring {
+            animation: rotate 20s linear infinite;
+        }
+        @keyframes rotate {
+            from { transform: rotate(0deg); }
+            to { transform: rotate(360deg); }
+        }
+        .pulse-cyan {
+            animation: pulse-cyan 2s infinite;
+        }
+        @keyframes pulse-cyan {
+            0% { box-shadow: 0 0 0 0 rgba(0, 219, 231, 0.4); }
+            70% { box-shadow: 0 0 0 10px rgba(0, 219, 231, 0); }
+            100% { box-shadow: 0 0 0 0 rgba(0, 219, 231, 0); }
+        }
+    </style>
+<script id="tailwind-config">
+      tailwind.config = {
+        darkMode: "class",
+        theme: {
+          extend: {
+            "colors": {
+                    "inverse-on-surface": "#2c303b",
+                    "secondary": "#98cbff",
+                    "surface": "#0f131d",
+                    "secondary-fixed": "#cfe5ff",
+                    "on-secondary-fixed-variant": "#004a77",
+                    "surface-variant": "#313540",
+                    "outline-variant": "#3a494b",
+                    "on-primary-container": "#006a71",
+                    "primary": "#e1fdff",
+                    "tertiary-container": "#ffd0cb",
+                    "on-tertiary-container": "#c20018",
+                    "primary-fixed-dim": "#00dbe7",
+                    "on-primary-fixed": "#002022",
+                    "surface-bright": "#353944",
+                    "tertiary": "#fff5f4",
+                    "secondary-container": "#00a2fd",
+                    "tertiary-fixed": "#ffdad6",
+                    "on-primary-fixed-variant": "#004f54",
+                    "on-secondary-container": "#003558",
+                    "on-tertiary-fixed": "#410003",
+                    "error-container": "#93000a",
+                    "outline": "#849495",
+                    "on-surface": "#dfe2f1",
+                    "surface-container-lowest": "#0a0e18",
+                    "on-error": "#690005",
+                    "on-error-container": "#ffdad6",
+                    "primary-fixed": "#74f5ff",
+                    "on-surface-variant": "#b9cacb",
+                    "background": "#0f131d",
+                    "inverse-surface": "#dfe2f1",
+                    "surface-container-highest": "#313540",
+                    "on-tertiary": "#680008",
+                    "primary-container": "#00f2ff",
+                    "on-primary": "#00363a",
+                    "surface-container": "#1c1f2a",
+                    "tertiary-fixed-dim": "#ffb3ac",
+                    "inverse-primary": "#00696f",
+                    "error": "#ffb4ab",
+                    "surface-container-high": "#262a35",
+                    "on-secondary-fixed": "#001d33",
+                    "surface-tint": "#00dbe7",
+                    "surface-dim": "#0f131d",
+                    "secondary-fixed-dim": "#98cbff",
+                    "on-tertiary-fixed-variant": "#930010",
+                    "surface-container-low": "#171b26",
+                    "on-secondary": "#003354",
+                    "on-background": "#dfe2f1"
+            },
+            "borderRadius": {
+                    "DEFAULT": "0.125rem",
+                    "lg": "0.25rem",
+                    "xl": "0.5rem",
+                    "full": "0.75rem"
+            },
+            "spacing": {
+                    "unit": "4px",
+                    "stack-lg": "32px",
+                    "panel-padding": "24px",
+                    "stack-md": "16px",
+                    "gutter": "16px",
+                    "stack-sm": "8px",
+                    "container-margin": "32px"
+            },
+            "fontFamily": {
+                    "headline-md": ["Space Grotesk"],
+                    "display-lg": ["Space Grotesk"],
+                    "label-caps": ["JetBrains Mono"],
+                    "data-mono": ["JetBrains Mono"],
+                    "body-base": ["Inter"]
+            },
+            "fontSize": {
+                    "display-lg": ["48px", {"lineHeight": "1.1", "letterSpacing": "-0.02em", "fontWeight": "700"}],
+                    "label-caps": ["12px", {"lineHeight": "1.0", "letterSpacing": "0.1em", "fontWeight": "500"}],
+                    "data-mono": ["14px", {"lineHeight": "1.4", "fontWeight": "400"}],
+                    "headline-md": ["32px", {"lineHeight": "1.2", "letterSpacing": "0.02em", "fontWeight": "500"}],
+                    "body-base": ["16px", {"lineHeight": "1.6", "letterSpacing": "0.01em", "fontWeight": "400"}]
+            }
+          },
+        },
+      }
+    </script>
+</head>
+<body class="bg-background text-on-surface font-body-base overflow-x-hidden selection:bg-primary-fixed-dim selection:text-on-primary-fixed">
+<div class="fixed inset-0 grid-bg opacity-20 pointer-events-none"></div>
+<!-- TopNavBar -->
+<header class="fixed top-0 w-full bg-surface/60 backdrop-blur-xl border-b border-outline-variant/20 shadow-[0_0_15px_rgba(0,219,231,0.2)] flex justify-between items-center px-container-margin py-stack-sm z-50">
+<div class="flex items-center gap-stack-md">
+<span class="font-display-lg text-headline-md text-primary-fixed-dim tracking-tighter">A.R.V.I.S. OS</span>
+</div>
+<div class="hidden md:flex gap-stack-lg items-center">
+<a class="font-label-caps text-label-caps text-primary-fixed-dim font-bold border-b border-primary-fixed-dim py-1" href="#">DASHBOARD</a>
+<a class="font-label-caps text-label-caps text-on-surface-variant hover:text-primary-fixed transition-all" href="#">AGENTS</a>
+<a class="font-label-caps text-label-caps text-on-surface-variant hover:text-primary-fixed transition-all" href="#">TASKS</a>
+<a class="font-label-caps text-label-caps text-on-surface-variant hover:text-primary-fixed transition-all" href="#">SYSTEM</a>
+</div>
+<div class="flex items-center gap-unit">
+<button class="p-stack-sm text-on-surface-variant hover:bg-primary/10 hover:text-primary-fixed transition-all scale-95 active:scale-90">
+<span class="material-symbols-outlined" data-icon="search">search</span>
+</button>
+<button class="p-stack-sm text-on-surface-variant hover:bg-primary/10 hover:text-primary-fixed transition-all scale-95 active:scale-90">
+<span class="material-symbols-outlined" data-icon="sensors">sensors</span>
+</button>
+<button class="p-stack-sm text-on-surface-variant hover:bg-primary/10 hover:text-primary-fixed transition-all scale-95 active:scale-90">
+<span class="material-symbols-outlined" data-icon="notifications_active">notifications_active</span>
+</button>
+<button class="p-stack-sm text-on-surface-variant hover:bg-primary/10 hover:text-primary-fixed transition-all scale-95 active:scale-90">
+<span class="material-symbols-outlined" data-icon="settings">settings</span>
+</button>
+</div>
+</header>
+<!-- SideNavBar -->
+<aside class="fixed left-0 top-0 h-full w-[280px] bg-surface-container-lowest/40 backdrop-blur-2xl border-r border-outline-variant/30 shadow-2xl flex flex-col h-full py-panel-padding z-40 hidden xl:flex">
+<div class="mt-20 px-gutter">
+<div class="flex items-center gap-stack-md mb-stack-lg p-stack-sm border border-outline-variant/20 rounded-lg">
+<div class="w-12 h-12 rounded-full overflow-hidden border border-primary-fixed-dim/30">
+<img alt="System Administrator Profile" class="w-full h-full object-cover" src="https://lh3.googleusercontent.com/aida-public/AB6AXuDHH7v3WUxpVIbPH5yfQKxU0pYx-KjRznYRM7FuQ7eLoDBJ3wxEsgGvwi_iJ1S716IWjGDGYIunlpoOKaj3b_2xPROv3ZrEwhtCQCz2sNdWZ4DzkwZAo_n3uMBUeyRoeaApKN2XPA37qcsxYBLcDWKJbVzeerImdTF1gd6TnkGkzLeU91bnXJTflHpqpVQrhuRELBoOR3k6MT99ovqxCKg41OQSlgL_Mh8AYn-u1oaAGwuoabA5bSbGdtqOYhiBhvZ3p0jcoi0m5Y3-"/>
+</div>
+<div>
+<div class="font-label-caps text-label-caps text-primary-fixed-dim">OPERATOR-01</div>
+<div class="font-data-mono text-[10px] text-outline">STATUS: ENCRYPTED</div>
+</div>
+</div>
+<nav class="flex flex-col gap-unit">
+<a class="bg-primary-container/20 text-primary-fixed-dim border-r-2 border-primary-fixed-dim py-4 px-4 flex items-center gap-stack-md font-label-caps text-label-caps" href="#">
+<span class="material-symbols-outlined" data-icon="grid_view">grid_view</span>
+                    DASHBOARD
+                </a>
+<a class="text-on-surface-variant py-4 px-4 flex items-center gap-stack-md font-label-caps text-label-caps hover:bg-surface-variant/50 hover:text-primary-fixed transition-colors translate-x-1 duration-300" href="#">
+<span class="material-symbols-outlined" data-icon="smart_toy">smart_toy</span>
+                    AGENTS
+                </a>
+<a class="text-on-surface-variant py-4 px-4 flex items-center gap-stack-md font-label-caps text-label-caps hover:bg-surface-variant/50 hover:text-primary-fixed transition-colors translate-x-1 duration-300" href="#">
+<span class="material-symbols-outlined" data-icon="assignment_late">assignment_late</span>
+                    TASKS
+                </a>
+<a class="text-on-surface-variant py-4 px-4 flex items-center gap-stack-md font-label-caps text-label-caps hover:bg-surface-variant/50 hover:text-primary-fixed transition-colors translate-x-1 duration-300" href="#">
+<span class="material-symbols-outlined" data-icon="memory">memory</span>
+                    SYSTEM
+                </a>
+</nav>
+</div>
+<div class="mt-auto px-gutter">
+<button class="w-full py-stack-md border border-primary-fixed-dim text-primary-fixed-dim font-label-caps text-label-caps hover:bg-primary-fixed-dim/10 transition-all mb-stack-md group">
+                ACTIVATE VOICE
+                <span class="material-symbols-outlined align-middle ml-2 group-hover:animate-pulse" data-icon="mic">mic</span>
+</button>
+<div class="flex flex-col gap-unit border-t border-outline-variant/20 pt-stack-md">
+<a class="text-on-surface-variant py-2 flex items-center gap-stack-md font-label-caps text-[10px] hover:text-primary-fixed" href="#">
+<span class="material-symbols-outlined text-sm" data-icon="help_outline">help_outline</span>
+                    HELP
+                </a>
+<a class="text-on-surface-variant py-2 flex items-center gap-stack-md font-label-caps text-[10px] hover:text-primary-fixed" href="#">
+<span class="material-symbols-outlined text-sm" data-icon="logout">logout</span>
+                    LOGOUT
+                </a>
+</div>
+</div>
+</aside>
+<!-- Main Content -->
+<main class="xl:ml-[280px] pt-32 pb-24 px-container-margin">
+<!-- Central Holographic Feature -->
+<section class="mb-20 flex flex-col items-center justify-center relative min-h-[500px]">
+<!-- Decorative L-Brackets -->
+<div class="absolute top-0 left-0 w-12 h-12 border-t-2 border-l-2 border-primary-fixed-dim/40"></div>
+<div class="absolute top-0 right-0 w-12 h-12 border-t-2 border-r-2 border-primary-fixed-dim/40"></div>
+<div class="absolute bottom-0 left-0 w-12 h-12 border-b-2 border-l-2 border-primary-fixed-dim/40"></div>
+<div class="absolute bottom-0 right-0 w-12 h-12 border-b-2 border-r-2 border-primary-fixed-dim/40"></div>
+<div class="relative w-[300px] h-[300px] md:w-[450px] md:h-[450px] flex items-center justify-center">
+<!-- Outer Ring -->
+<div class="absolute inset-0 border-[0.5px] border-dashed border-primary-fixed-dim/20 rounded-full hologram-ring"></div>
+<!-- Inner Spinning Rings -->
+<div class="absolute inset-8 border-2 border-primary-fixed-dim/10 rounded-full animate-[spin_10s_linear_infinite]"></div>
+<div class="absolute inset-16 border border-primary-fixed-dim/30 rounded-full animate-[spin_15s_linear_infinite_reverse]"></div>
+<!-- Central Core -->
+<div class="w-48 h-48 md:w-64 md:h-64 rounded-full bg-primary-fixed-dim/5 backdrop-blur-3xl flex flex-col items-center justify-center relative border border-primary-fixed-dim/20">
+
+<div class="relative z-10 flex flex-col items-center">
+<span class="material-symbols-outlined text-headline-md text-primary-fixed-dim animate-pulse" data-icon="graphic_eq">graphic_eq</span>
+<p class="font-data-mono text-data-mono text-primary-fixed-dim mt-4 tracking-widest">LISTENING</p>
+<p class="font-label-caps text-[10px] text-outline mt-1">Waiting for Wake Word...</p>
+</div>
+</div>
+<!-- Floating Data Points around the ring -->
+<div class="absolute -top-4 right-10 glass-panel px-stack-sm py-unit flex items-center gap-unit">
+<div class="w-1.5 h-1.5 bg-primary-fixed-dim rounded-full pulse-cyan"></div>
+<span class="font-data-mono text-[10px] text-primary-fixed-dim">SNR: 42.1dB</span>
+</div>
+<div class="absolute bottom-12 -left-8 glass-panel px-stack-sm py-unit flex items-center gap-unit">
+<div class="w-1.5 h-1.5 bg-secondary-container rounded-full pulse-cyan" style="animation-delay: 1s"></div>
+<span class="font-data-mono text-[10px] text-secondary">LATENCY: 14ms</span>
+</div>
+</div>
+<button class="mt-stack-lg px-stack-lg py-stack-md glass-panel border-primary-fixed-dim/40 text-primary-fixed-dim font-label-caps tracking-widest hover:bg-primary-fixed-dim/10 hover:shadow-[0_0_20px_rgba(0,219,231,0.3)] transition-all flex items-center gap-stack-md group uppercase">
+                Manual Command
+                <span class="material-symbols-outlined transition-transform group-hover:translate-x-1" data-icon="keyboard_command_key">keyboard_command_key</span>
+</button>
+</section>
+<!-- Active Agents Section -->
+<section>
+<div class="flex items-center justify-between mb-stack-lg">
+<h2 class="font-headline-md text-headline-md text-primary flex items-center gap-stack-md">
+<span class="material-symbols-outlined" data-icon="memory">memory</span>
+                    ACTIVE_AGENTS
+                </h2>
+<div class="flex gap-stack-sm">
+<div class="px-stack-sm py-1 border border-outline-variant/30 rounded-full flex items-center gap-stack-sm">
+<div class="w-2 h-2 rounded-full bg-primary-fixed-dim"></div>
+<span class="font-label-caps text-[10px] text-on-surface">TOTAL: 12</span>
+</div>
+</div>
+</div>
+<!-- Agent Grid -->
+<div class="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-stack-lg">
+<!-- Software Agent -->
+<div class="glass-panel relative p-panel-padding overflow-hidden group">
+<div class="scanning-line"></div>
+<div class="flex justify-between items-start mb-stack-lg">
+<div>
+<span class="font-data-mono text-[10px] text-outline">[SEC-01]</span>
+<h3 class="font-headline-md text-xl text-primary-fixed-dim">CODER_X</h3>
+</div>
+<span class="material-symbols-outlined text-secondary" data-icon="terminal">terminal</span>
+</div>
+<div class="space-y-stack-md mb-stack-lg">
+<div class="flex justify-between text-[11px] font-data-mono">
+<span class="text-outline uppercase">Refactoring kernel.js</span>
+<span class="text-primary-fixed-dim">78%</span>
+</div>
+<div class="h-1 w-full bg-surface-container rounded-full overflow-hidden">
+<div class="h-full bg-primary-fixed-dim shadow-[0_0_8px_rgba(0,219,231,0.6)] w-[78%]"></div>
+</div>
+</div>
+<div class="flex items-center gap-stack-sm">
+<div class="w-2 h-2 rounded-full bg-primary-fixed-dim animate-pulse"></div>
+<span class="font-label-caps text-[10px] text-on-surface-variant">OPTIMIZING SYSTEM CALLS</span>
+</div>
+</div>
+<!-- Media Agent -->
+<div class="glass-panel relative p-panel-padding overflow-hidden group">
+<div class="scanning-line" style="animation-delay: 1.5s"></div>
+<div class="flex justify-between items-start mb-stack-lg">
+<div>
+<span class="font-data-mono text-[10px] text-outline">[SEC-02]</span>
+<h3 class="font-headline-md text-xl text-primary-fixed-dim">RENDER_CORE</h3>
+</div>
+<span class="material-symbols-outlined text-secondary" data-icon="movie_filter">movie_filter</span>
+</div>
+<div class="relative w-full h-24 mb-stack-md rounded overflow-hidden">
+<img class="w-full h-full object-cover opacity-50 grayscale group-hover:grayscale-0 transition-all duration-700" data-alt="A futuristic digital landscape featuring glowing wireframe grids and nebulae in a deep space aesthetic. The lighting is dominated by electric cyan and deep indigo, with sharp holographic particles floating in the foreground. High-tech, cinematic rendering of an abstract AI processing visual environment." src="https://lh3.googleusercontent.com/aida-public/AB6AXuA51KbeslqLfC6Gkh_cqwfnp4zmnLYCoyA8fsgYeJOMCts-7omzu6wLDD0Ipw_XEkohx3Nr3LPdR-y9Sxc0OrrjY3or5mfQBtEevKSR4WrJ_86W5EW5dB9lfv8HdyEAeLtVEU5ODTvfKq_w0VfdIJO2DE8euWYFB0gVMdf7B3e1jqDJIJoxiDKEBfDp_gkWxWVUrjIbbwbuP1FXknNqrPAE0fDqXxDsu-Fns8F3o33hhvINiCu4JZPZNEabUI-0P4G84xtvSqz21GEr"/>
+<div class="absolute inset-0 bg-gradient-to-t from-surface to-transparent"></div>
+<div class="absolute bottom-2 left-2 flex items-center gap-unit">
+<span class="material-symbols-outlined text-sm text-primary-fixed-dim" data-icon="movie">movie</span>
+<span class="font-data-mono text-[10px] text-primary-fixed-dim">GEN_CLIP_45.MP4</span>
+</div>
+</div>
+<div class="flex items-center gap-stack-sm">
+<div class="w-2 h-2 rounded-full bg-secondary-container animate-pulse"></div>
+<span class="font-label-caps text-[10px] text-on-surface-variant">DENOISING FRAME 450/1200</span>
+</div>
+</div>
+<!-- Research Agent -->
+<div class="glass-panel relative p-panel-padding overflow-hidden group">
+<div class="scanning-line" style="animation-delay: 0.8s"></div>
+<div class="flex justify-between items-start mb-stack-lg">
+<div>
+<span class="font-data-mono text-[10px] text-outline">[SEC-03]</span>
+<h3 class="font-headline-md text-xl text-primary-fixed-dim">SYNAPSE_AI</h3>
+</div>
+<span class="material-symbols-outlined text-secondary" data-icon="psychology">psychology</span>
+</div>
+<div class="space-y-2 mb-stack-lg">
+<div class="flex items-center justify-between p-2 bg-primary/5 border border-primary/10">
+<span class="font-data-mono text-[10px] text-on-surface-variant">DATASET_BETA_V2</span>
+<span class="font-label-caps text-[10px] text-primary-fixed-dim">SCRAPING</span>
+</div>
+<div class="flex items-center justify-between p-2 bg-primary/5 border border-primary/10">
+<span class="font-data-mono text-[10px] text-on-surface-variant">VECTOR_SEARCH</span>
+<span class="font-label-caps text-[10px] text-secondary">ACTIVE</span>
+</div>
+</div>
+<div class="flex items-center gap-stack-sm">
+<div class="w-2 h-2 rounded-full bg-tertiary-container animate-bounce"></div>
+<span class="font-label-caps text-[10px] text-on-surface-variant">ANALYZING TREND PATTERNS</span>
+</div>
+</div>
+</div>
+</section>
+<!-- Bottom Status Bar -->
+<div class="mt-stack-lg grid grid-cols-1 md:grid-cols-4 gap-stack-md">
+<div class="glass-panel p-stack-md flex flex-col gap-unit">
+<span class="font-label-caps text-[10px] text-outline">CPU LOAD</span>
+<div class="flex items-end gap-stack-sm">
+<span class="font-display-lg text-2xl text-primary-fixed-dim">24%</span>
+<div class="flex gap-[2px] h-4 mb-1">
+<div class="w-1 bg-primary-fixed-dim h-full"></div>
+<div class="w-1 bg-primary-fixed-dim h-3/4"></div>
+<div class="w-1 bg-primary-fixed-dim/30 h-1/2"></div>
+<div class="w-1 bg-primary-fixed-dim/30 h-1/4"></div>
+</div>
+</div>
+</div>
+<div class="glass-panel p-stack-md flex flex-col gap-unit">
+<span class="font-label-caps text-[10px] text-outline">MEMORY USAGE</span>
+<div class="flex items-end gap-stack-sm">
+<span class="font-display-lg text-2xl text-secondary">12.4GB</span>
+<span class="font-data-mono text-[10px] mb-1 text-outline">/ 64GB</span>
+</div>
+</div>
+<div class="glass-panel p-stack-md flex flex-col gap-unit">
+<span class="font-label-caps text-[10px] text-outline">NEURAL OPS</span>
+<div class="flex items-end gap-stack-sm">
+<span class="font-display-lg text-2xl text-primary-fixed-dim">1.2 P/FLOPS</span>
+</div>
+</div>
+<div class="glass-panel p-stack-md flex flex-col gap-unit">
+<span class="font-label-caps text-[10px] text-outline">ENCRYPTION LEVEL</span>
+<div class="flex items-center gap-stack-sm">
+<span class="material-symbols-outlined text-primary-fixed-dim text-lg" data-icon="enhanced_encryption">enhanced_encryption</span>
+<span class="font-data-mono text-sm text-primary-fixed-dim">AES-4096-QM</span>
+</div>
+</div>
+</div>
+</main>
+<!-- Footer -->
+<footer class="fixed bottom-0 right-0 w-full flex justify-end p-gutter pointer-events-none z-50">
+<div class="flex items-center gap-stack-lg font-data-mono text-data-mono text-outline opacity-80 hover:opacity-100 transition-opacity pointer-events-auto">
+<div class="flex gap-stack-md">
+<a class="hover:text-primary transition-opacity uppercase" href="#">ENCRYPTION_LOGS</a>
+<span class="text-outline/30">|</span>
+<a class="hover:text-primary transition-opacity uppercase" href="#">API_V2_DOCS</a>
+</div>
+<span>© 2024 NEXUS GEN-AI SYSTEMS</span>
+</div>
+</footer>
+<script>
+        // Micro-interactions for atmosphere
+        document.addEventListener('mousemove', (e) => {
+            const x = e.clientX / window.innerWidth;
+            const y = e.clientY / window.innerHeight;
+            
+            // Subtle parallax for grid background
+            const grid = document.querySelector('.grid-bg');
+            if(grid) {
+                grid.style.transform = `translate(${x * 10}px, ${y * 10}px)`;
+            }
+        });
+
+        // Simulating data updates
+        setInterval(() => {
+            const cpuVal = document.querySelector('main > div:last-child > div:first-child span.text-2xl');
+            if(cpuVal) {
+                const current = parseInt(cpuVal.textContent);
+                const noise = Math.floor(Math.random() * 5) - 2;
+                cpuVal.textContent = Math.min(Math.max(current + noise, 18), 45) + '%';
+            }
+        }, 3000);
+    </script>
+</body></html>
