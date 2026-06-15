@@ -42,5 +42,21 @@ for (const m of [
   assert.equal(isClaudeUnavailable(new Error(m)), false, `should NOT be unavailable: ${m}`);
 }
 
+// 6b. Deny-list wins when both lists would match (priority ordering is the
+//     core safety property — an auth error must never be treated as unavailable).
+assert.equal(
+  isClaudeUnavailable(new Error("503 authentication required")),
+  false,
+  "deny-list (authentication) must beat allow-list (503)",
+);
+
+// 6c. Numeric status codes are word-bounded — they must not match inside a
+//     larger number, or unrelated errors would wrongly trigger fallback.
+assert.equal(
+  isClaudeUnavailable(new Error("RangeError at offset 15042")),
+  false,
+  "504 inside 15042 must not count as unavailable",
+);
+
 console.log("fallback-test: OK");
 process.exit(0);

@@ -33,19 +33,25 @@ export function reset(): void {
 export function isClaudeUnavailable(err: unknown): boolean {
   const msg = (err instanceof Error ? err.message : String(err)).toLowerCase();
 
+  // A purely-numeric token (an HTTP status) matches only when it isn't embedded
+  // in a larger number — so "504" doesn't match inside "15042". Textual tokens
+  // match as plain substrings.
+  const has = (tokens: string[]): boolean =>
+    tokens.some((t) =>
+      /^\d+$/.test(t) ? new RegExp(`(?<![0-9])${t}(?![0-9])`).test(msg) : msg.includes(t),
+    );
+
   // Real failures first: never mask these, even if other words also match.
-  const realFailure = [
+  if (has([
     "authentication", "unauthorized", "invalid api key", "invalid_api_key",
     "oauth", "permission", "401", "403",
-  ];
-  if (realFailure.some((p) => msg.includes(p))) return false;
+  ])) return false;
 
   // Cloud-capacity / transient errors: safe to fall back to local.
-  const unavailable = [
+  return has([
     "rate limit", "rate_limit", "temporarily limiting", "exceed your account",
     "overloaded", "529", "502", "503", "504", "429",
     "timeout", "timed out", "etimedout", "econnrefused", "econnreset",
-    "socket hang up", "fetch failed", "network",
-  ];
-  return unavailable.some((p) => msg.includes(p));
+    "socket hang up", "fetch failed", "network error",
+  ]);
 }
