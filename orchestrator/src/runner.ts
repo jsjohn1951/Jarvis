@@ -113,6 +113,7 @@ export async function* runHybrid(
  * tools. Used by memory consolidation. Returns the final result text.
  */
 export async function cloudComplete(prompt: string, system?: string): Promise<string> {
+  if (fallback.isOpen()) return ""; // cloud unavailable — skip rather than fail
   const stream = query({
     prompt,
     options: {
