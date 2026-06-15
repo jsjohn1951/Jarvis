@@ -6,6 +6,11 @@ import { config } from "./config.js";
  * route to the local 9B instead of paying a doomed cloud round-trip. Recovery is
  * lazy: once the cooldown elapses, `isOpen()` returns false and the next request
  * probes the cloud again (which re-trips on failure, or `reset()`s on success).
+ *
+ * State is process-global and shared across concurrent requests. That's fine for
+ * this single-user orchestrator: a benign race (one request's `reset()` clearing
+ * another's fresh `trip()`) just costs one extra cloud probe, which re-trips —
+ * there is no stuck-open or stuck-closed state.
  */
 let trippedAt: number | null = null;
 
