@@ -20,6 +20,8 @@ final class SpeechService: @unchecked Sendable {
 
     var onPartial: (@MainActor (String) -> Void)?
     var onFinal: (@MainActor (String) -> Void)?
+    /// Raw mic buffers (for pitch/gender analysis). Called on the audio thread.
+    var onBuffer: ((AVAudioPCMBuffer) -> Void)?
 
     func requestAuthorization() async -> Bool {
         let speech = await withCheckedContinuation { (c: CheckedContinuation<Bool, Never>) in
@@ -41,8 +43,9 @@ final class SpeechService: @unchecked Sendable {
 
         let input = engine.inputNode
         let format = input.outputFormat(forBus: 0)
-        input.installTap(onBus: 0, bufferSize: 1024, format: format) { buffer, _ in
+        input.installTap(onBus: 0, bufferSize: 1024, format: format) { [weak self] buffer, _ in
             req.append(buffer)                    // background audio thread — append only
+            self?.onBuffer?(buffer)               // feed pitch/gender analysis
         }
         engine.prepare()
         try engine.start()

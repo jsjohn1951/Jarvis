@@ -18,6 +18,10 @@ app/.build/
 app/DerivedData/
 *.xcuserstate
 
+# Memory — volatile short-term buffer + captured screenshots (long-term + personality are kept)
+memory/short-term/*.md
+memory/screenshots/
+
 # macOS
 .DS_Store
 

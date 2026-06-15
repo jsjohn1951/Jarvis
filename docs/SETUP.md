@@ -1,44 +1,28 @@
 # Setup
 
-## Prerequisites
+Full dependency list, installation, and running instructions now live in the top-level [README](../README.md). This file covers the first-run permissions and a quick reference.
 
-Already present on the target machine (verified):
-- macOS 26 (Tahoe), Apple Silicon (M3 Pro, 18 GB)
-- Xcode + Swift 6 (`xcodebuild -version`)
-- Node 24 (`node -v`)
-- llama.cpp built **with Metal** at `~/llama.cpp/build/bin/`
-- The router at `~/.claude/router/` and its venv
-- `Qwen3.5-9B-Q4_K_M.gguf` in `~/models/`
-- **Claude Pro subscription** logged in via the `claude` CLI (run `claude`, complete `/login` if prompted). Hybrid agents authenticate through this — **not** an API key. Ensure `ANTHROPIC_API_KEY` is unset (a stray key overrides the subscription).
-
-Install if missing:
-- **xcodegen** (to generate the Xcode project from `app/project.yml`): `brew install xcodegen`
-- **Hugging Face CLI** (to pull models): `pip install -U "huggingface_hub[cli]"` → `hf` *(note: brew binaries may lack Metal; this only fetches files, so brew is fine here)*
-
-## First run
-
+## Quick reference
 ```bash
-# 1) Optimized local model (speculative decoding). See docs/MODELS.md.
-./scripts/llama-server-optimized.sh
+# install (one time) — see README for details
+cd orchestrator && npm install && cd ..
+./models/pull-models.sh
+cd tts && uv venv --python 3.12 .venv && uv pip install -r requirements.txt && cd ..   # + download model files (README)
+cd app && xcodegen generate && xcodebuild -scheme Jarvis -derivedDataPath ./DerivedData build && cd ..
 
-# 2) Orchestrator
-cd orchestrator
-npm install
-npm run dev            # WebSocket on ws://127.0.0.1:7777
-
-# 3) App
-cd ../app
-xcodegen generate     # produces Jarvis.xcodeproj from project.yml
-open Jarvis.xcodeproj  # ⌘R to run
+# run / stop
+./scripts/start-jarvis.sh
+./scripts/stop-jarvis.sh
 ```
 
-On first launch macOS will prompt for **Microphone** and **Speech Recognition** permission — grant both (required for voice). The app appears in the menu bar (no Dock icon).
+## Auth
+Cloud agents use your **Claude Pro subscription** via the `claude` CLI (`claude` → `/login`). **Not** an API key — keep `ANTHROPIC_API_KEY` unset (a stray key overrides the subscription). Quick tier, voice, and memory capture/retrieval are 100% local.
 
-## Permissions
+## Permissions (granted via macOS prompts on first use)
+The app runs **without App Sandbox** (personal build); these are gated by TCC:
+- **Microphone** + **Speech Recognition** — voice input.
+- **Automation** (Spotify / Apple Music) — music dim + "what's playing".
+- **Screen Recording** — "look at my screen".
+- **Input Monitoring** (optional) — the global ⌥Space push-to-talk hotkey.
 
-Jarvis declares, in `Info.plist`:
-- `NSMicrophoneUsageDescription`
-- `NSSpeechRecognitionUsageDescription`
-
-and requests the outgoing-network + audio-input entitlements (it talks to the local orchestrator on `:7777`).
-</content>
+`Info.plist` declares `NSMicrophoneUsageDescription`, `NSSpeechRecognitionUsageDescription`, `NSAppleEventsUsageDescription`, `NSScreenCaptureUsageDescription`. The app is menu-bar-only (no Dock icon).

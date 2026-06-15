@@ -48,7 +48,14 @@ final class OrchestratorClient: ObservableObject {
         receive()
     }
 
-    func sendPrompt(_ text: String, agent: String? = nil, triage: Bool = false) {
+    func sendPrompt(
+        _ text: String,
+        agent: String? = nil,
+        triage: Bool = false,
+        honorific: String? = nil,
+        imageBase64: String? = nil,
+        nowPlaying: String? = nil
+    ) {
         guard !text.trimmingCharacters(in: .whitespaces).isEmpty else { return }
         lastUserText = text
         transcript = ""
@@ -57,6 +64,9 @@ final class OrchestratorClient: ObservableObject {
         var msg: [String: Any] = ["type": "prompt", "text": text]
         if let agent { msg["agent"] = agent }
         if triage { msg["triage"] = true }
+        if let honorific { msg["honorific"] = honorific }
+        if let imageBase64 { msg["image"] = imageBase64 }
+        if let nowPlaying { msg["nowPlaying"] = nowPlaying }
         send(json: msg)
     }
 

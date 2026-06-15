@@ -32,6 +32,16 @@ If the Kokoro server is down, the app falls back to `AVSpeechSynthesizer` ([TTSS
 
 > Note: the real J.A.R.V.I.S. voice (Paul Bettany) is a copyrighted performance — not available as open source and not cloned here. Kokoro's British-male voices are the natural, license-clean alternative.
 
+## Background music — dim, not mute
+Toggle **AUDIO** in the HUD: **Mix** (leave other audio alone), **Dim** (lower Spotify/Apple Music to the slider %, default 30%, while Jarvis speaks, then restore), **Mute**. Implemented in [AudioDucker.swift](../app/Jarvis/Voice/AudioDucker.swift) via Apple Events — so it dims *only* those players (other sources like browser audio are left alone). Needs Automation permission.
+
+## Form of address — Sir / Ma'am
+**ADDR** setting: **Auto** (default) detects the speaker's pitch on-device ([VoiceGender.swift](../app/Jarvis/Voice/VoiceGender.swift)) — low → "Sir", high → "Ma'am", ambiguous → neutral — or force **Sir / Ma'am / None**. The resolved honorific is sent with the prompt and woven into the persona. Voice-based inference is imperfect; it stays neutral when unsure and the manual override is always available.
+
+## Screen & now-playing
+- **Look at my screen:** the eye button or "look at my screen" captures a screenshot ([ScreenContext.swift](../app/Jarvis/Context/ScreenContext.swift)) → vision agent. Needs Screen Recording permission.
+- **What's playing:** returns the current Spotify/Apple Music track ([NowPlaying.swift](../app/Jarvis/Context/NowPlaying.swift)).
+
 ## Permissions (granted on first use)
 - **Microphone** + **Speech Recognition** — prompted automatically; strings are in the app's Info.plist. If denied, the HUD shows "mic denied — enable in System Settings".
 - **Input Monitoring** (optional) — only for the system-wide hotkey.

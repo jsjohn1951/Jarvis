@@ -6,6 +6,8 @@ import { quickStream } from "./quick.js";
 import { runHybrid } from "./runner.js";
 import { checkHealth } from "./lifecycle.js";
 import { listModels, getCurrentModel, swapModel } from "./models.js";
+import { systemBase } from "./personality.js";
+import * as memory from "./memory.js";
 
 // ── Wire protocol (app ↔ orchestrator) ────────────────────────────────────────
 // inbound:  {type:"prompt", text, agent?}  |  {type:"health"}
@@ -35,7 +37,27 @@ function stripWakeAnywhere(text: string): string {
   return text.replace(/^.*?\bjarvis\b[\s,.:!?-]*/i, "").trim();
 }
 
-async function handlePrompt(ws: WebSocket, rawText: string, forcedAgent?: string, triage = false) {
+/** Compose personality + retrieved long-term memory + honorific + role prompt. */
+async function buildSystem(roleSystem: string | undefined, userText: string, honorific?: string): Promise<string> {
+  const parts = [systemBase()];
+  const longterm = await memory.retrieve(userText);
+  if (longterm) parts.push(longterm);
+  if (honorific === "sir" || honorific === "maam") {
+    parts.push(`For this turn, address the user as "${honorific === "sir" ? "Sir" : "Ma'am"}" — naturally and sparingly.`);
+  }
+  if (roleSystem) parts.push(roleSystem);
+  return parts.join("\n\n");
+}
+
+async function handlePrompt(
+  ws: WebSocket,
+  rawText: string,
+  forcedAgent?: string,
+  triage = false,
+  honorific?: string,
+  image?: string,
+  nowPlaying?: string,
+) {
   send(ws, { type: "status", state: "thinking" });
 
   // Wake captures are triaged: did the speaker actually address Jarvis?
@@ -50,25 +72,45 @@ async function handlePrompt(ws: WebSocket, rawText: string, forcedAgent?: string
   const greetingOnly = stripped.length === 0 && rawText.trim().length > 0;
   const text = greetingOnly ? rawText : stripped || rawText;
 
-  const { agent, via } = greetingOnly
+  // "new conversation" / "forget that" → clear short-term context.
+  if (!greetingOnly && /^(new conversation|forget (that|this|it)|start over|clear (memory|context))\b/i.test(text)) {
+    memory.clearShortTerm();
+    send(ws, { type: "agent", name: "quick", via: "command" });
+    const ack = "Context cleared. Starting fresh.";
+    send(ws, { type: "text", delta: ack });
+    send(ws, { type: "done", result: ack });
+    send(ws, { type: "status", state: "idle" });
+    return;
+  }
+
+  // An image needs a vision-capable hybrid agent — never the local 2B tier.
+  let resolved = greetingOnly
     ? { agent: "quick", via: "greeting" }
     : forcedAgent && AGENTS[forcedAgent]
       ? { agent: forcedAgent, via: "explicit" }
       : await dispatch(text);
+  if (image && AGENTS[resolved.agent]?.tier !== "hybrid") resolved = { agent: "researcher", via: "vision" };
+  const { agent, via } = resolved;
   send(ws, { type: "agent", name: agent, via });
 
   const def = AGENTS[agent] ?? AGENTS[DEFAULT_AGENT];
   const promptText = greetingOnly ? GREETING_PROMPT : text;
+  let system = await buildSystem(def.systemPrompt, text, honorific);
+  if (nowPlaying) system += `\n\nThe user is currently playing: ${nowPlaying}.`;
+  const history = greetingOnly ? [] : memory.recentTurns();
   let full = "";
 
   try {
-    if (def.tier === "local") {
-      for await (const delta of quickStream(promptText, def.systemPrompt)) {
+    if (def.tier === "local" && !image) {
+      for await (const delta of quickStream(promptText, system, history)) {
         full += delta;
         send(ws, { type: "text", delta });
       }
     } else {
-      for await (const ev of runHybrid(def, text)) {
+      // Hybrid agents take system-only; fold the recent conversation into it.
+      const histText = history.map((t) => `${t.role}: ${t.content}`).join("\n");
+      const sysWithHistory = histText ? `${system}\n\n## Recent conversation\n${histText}` : system;
+      for await (const ev of runHybrid(def, promptText, { system: sysWithHistory, imageBase64: image })) {
         if (ev.type === "text") {
           full += ev.delta;
           send(ws, { type: "text", delta: ev.delta });
@@ -84,6 +126,12 @@ async function handlePrompt(ws: WebSocket, rawText: string, forcedAgent?: string
     send(ws, { type: "error", message: err instanceof Error ? err.message : String(err) });
   }
   send(ws, { type: "status", state: "idle" });
+
+  // Persist to memory + curate in the background (don't delay the reply).
+  if (!greetingOnly && full.trim()) {
+    memory.appendTurn(text, full.trim());
+    void memory.capture().then(() => memory.maybeConsolidate()).catch(() => {});
+  }
 }
 
 export function startServer() {
@@ -132,7 +180,8 @@ export function startServer() {
           send(ws, { type: "status", state: "idle" });
           break;
         case "prompt":
-          if (typeof msg.text === "string") await handlePrompt(ws, msg.text, msg.agent, msg.triage === true);
+          if (typeof msg.text === "string")
+            await handlePrompt(ws, msg.text, msg.agent, msg.triage === true, msg.honorific, msg.image, msg.nowPlaying);
           break;
         default:
           send(ws, { type: "error", message: `unknown message: ${msg.type}` });

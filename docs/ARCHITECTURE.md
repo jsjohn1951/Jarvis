@@ -44,8 +44,16 @@ A menu-bar-only app (no Dock icon). It captures intent (voice or text), shows a 
 The brain. Responsibilities:
 - **Lifecycle supervisor** — ensures `llama-server` (:8080) and the router (:9090) are healthy before accepting work (shared scripts in `scripts/`).
 - **Agent registry** — named agents, each a Claude Agent SDK session launched with `ANTHROPIC_BASE_URL=http://127.0.0.1:9090` so it inherits hybrid routing automatically.
-- **Intent dispatcher** — classifies an incoming command and picks an agent. Classification itself runs on **local Qwen** (fast, free).
-- **WebSocket API** — streams `status` / `text` / `done` / `error` events back to the app.
+- **Intent dispatcher** — classifies an incoming command and picks an agent. Classification itself runs on **local Qwen** (fast, free). Images force a vision-capable hybrid agent.
+- **Memory + personality** — every prompt's system message is built from `personality/*.md` + retrieved long-term memory + the short-term buffer (see [MEMORY.md](MEMORY.md)). Turns are persisted and curated (2B capture + cloud consolidation).
+- **WebSocket API** — streams `status` / `text` / `tool` / `done` / `error` / `ignored` events; accepts `prompt` (with optional `triage`, `honorific`, `image`, `nowPlaying`), `health`, `agents`, `models`, `swap`.
+
+### 3. App-side context & audio (`app/`)
+- **Screen** ([ScreenContext.swift](../app/Jarvis/Context/ScreenContext.swift)) — ScreenCaptureKit screenshot → vision agent.
+- **Now-playing** ([NowPlaying.swift](../app/Jarvis/Context/NowPlaying.swift)) + **music dim** ([AudioDucker.swift](../app/Jarvis/Voice/AudioDucker.swift)) — Apple Events to Spotify/Apple Music.
+- **Form of address** ([VoiceGender.swift](../app/Jarvis/Voice/VoiceGender.swift)) — on-device pitch → Sir/Ma'am.
+
+> **App Sandbox is intentionally OFF** (personal, self-signed app) so it can send Apple Events (music) and capture the screen. macOS TCC still gates Microphone, Speech, Automation, and Screen Recording via permission prompts.
 
 ## Data flow (one voice command)
 

@@ -19,6 +19,14 @@ export const config = {
   // Where the `dev` agent operates. Defaults to the user's home — set per-project.
   repoDir: process.env.JARVIS_REPO ?? homedir(),
 
-  // Scripts that bring the backend up (shared with the zsh function).
-  scriptsDir: process.env.JARVIS_SCRIPTS ?? join(homedir(), "Desktop", "jarvis", "scripts"),
-} as const;
+  // Project root + the scripts/memory/personality dirs derived from it.
+  root: process.env.JARVIS_ROOT ?? join(homedir(), "Desktop", "jarvis"),
+  get scriptsDir() { return process.env.JARVIS_SCRIPTS ?? join(this.root, "scripts"); },
+  get memoryDir() { return process.env.JARVIS_MEMORY ?? join(this.root, "memory"); },
+  get personalityDir() { return process.env.JARVIS_PERSONALITY ?? join(this.root, "personality"); },
+
+  // Memory tuning.
+  shortTermTurns: Number(process.env.JARVIS_SHORT_TERM_TURNS ?? 12),   // turns kept in the live buffer
+  consolidateEvery: Number(process.env.JARVIS_CONSOLIDATE_EVERY ?? 8), // turns between cloud consolidations
+  maxMemoryChars: Number(process.env.JARVIS_MAX_MEMORY_CHARS ?? 4000), // cap on injected long-term context
+};

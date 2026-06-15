@@ -19,6 +19,7 @@ struct HUDView: View {
             transcriptPanel
             healthRow
             voiceRow
+            settingsRow
             commandField
         }
         .padding(16)
@@ -36,6 +37,11 @@ struct HUDView: View {
                 .font(Theme.display(16)).tracking(3)
                 .foregroundStyle(Theme.onSurface)
             Spacer()
+            Button { voice.lookAtScreen() } label: {
+                Image(systemName: "eye").font(.system(size: 13, weight: .semibold))
+                    .foregroundStyle(Theme.onSurfaceVariant)
+            }
+            .buttonStyle(.plain).help("Look at my screen")
             Button { openWindow(id: "registry") } label: {
                 Image(systemName: "square.grid.2x2").font(.system(size: 13, weight: .semibold))
                     .foregroundStyle(Theme.onSurfaceVariant)
@@ -162,6 +168,37 @@ struct HUDView: View {
                 .overlay(RoundedRectangle(cornerRadius: Theme.radius)
                     .strokeBorder(Theme.outline.opacity(0.4), lineWidth: 1))
                 .clipShape(RoundedRectangle(cornerRadius: Theme.radius))
+        }
+        .buttonStyle(.plain)
+    }
+
+    // Address form + background-audio behavior. Cycling chips keep the popover compact.
+    private var settingsRow: some View {
+        HStack(spacing: 10) {
+            chip("ADDR · \(voice.addressMode.label)") {
+                let all = VoiceController.AddressMode.allCases
+                voice.addressMode = all[(all.firstIndex(of: voice.addressMode)! + 1) % all.count]
+            }
+            chip("AUDIO · \(voice.audioMode.label)") {
+                let all = AudioMode.allCases
+                voice.audioMode = all[(all.firstIndex(of: voice.audioMode)! + 1) % all.count]
+            }
+            if voice.audioMode == .dim {
+                Slider(value: $voice.dimLevel, in: 5...90, step: 5)
+                    .controlSize(.mini).tint(Theme.primary).frame(width: 70)
+                Text("\(Int(voice.dimLevel))%").font(Theme.mono).foregroundStyle(Theme.onSurfaceVariant)
+            }
+            Spacer()
+        }
+    }
+
+    private func chip(_ label: String, action: @escaping () -> Void) -> some View {
+        Button(action: action) {
+            Text(label).font(Theme.label()).tracking(1.0)
+                .foregroundStyle(Theme.onSurfaceVariant)
+                .padding(.horizontal, 8).padding(.vertical, 6)
+                .overlay(RoundedRectangle(cornerRadius: Theme.radius)
+                    .strokeBorder(Theme.outline.opacity(0.4), lineWidth: 1))
         }
         .buttonStyle(.plain)
     }

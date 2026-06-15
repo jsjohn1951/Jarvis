@@ -20,8 +20,12 @@
 	<string>1</string>
 	<key>LSUIElement</key>
 	<true/>
+	<key>NSAppleEventsUsageDescription</key>
+	<string>Jarvis dims background music (Spotify / Apple Music) while it speaks, and can tell you what's playing.</string>
 	<key>NSMicrophoneUsageDescription</key>
-	<string>Jarvis listens for your voice commands and the "Hey Jarvis" wake word, on-device.</string>
+	<string>Jarvis listens for your voice commands and the "Jarvis" wake word, on-device.</string>
+	<key>NSScreenCaptureUsageDescription</key>
+	<string>Jarvis captures a screenshot when you ask it to look at your screen.</string>
 	<key>NSSpeechRecognitionUsageDescription</key>
 	<string>Jarvis transcribes your spoken commands on-device using Apple's Speech framework.</string>
 </dict>

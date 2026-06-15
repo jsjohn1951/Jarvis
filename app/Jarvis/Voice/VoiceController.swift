@@ -5,6 +5,12 @@ import Combine
 /// Feeds transcripts into the OrchestratorClient and speaks its replies.
 @MainActor
 final class VoiceController: ObservableObject {
+    enum AddressMode: String, CaseIterable, Identifiable {
+        case auto, sir, maam, none
+        var id: String { rawValue }
+        var label: String { self == .maam ? "MA'AM" : rawValue.uppercased() }
+    }
+
     @Published var partial = ""
     @Published var isListening = false
     @Published var wakeWordEnabled = false
@@ -13,6 +19,10 @@ final class VoiceController: ObservableObject {
     @Published var inFollowUp = false         // currently inside the follow-up window
     @Published var authorized = false
     @Published var permissionDenied = false
+    // Settings (issues 3 & F)
+    @Published var addressMode: AddressMode = .auto
+    @Published var audioMode: AudioMode = .dim
+    @Published var dimLevel: Double = 30      // % for dim mode
 
     private enum Mode { case off, pushToTalk, wakeListening, wakeCapturing, followUp }
     private var mode: Mode = .off
@@ -20,18 +30,22 @@ final class VoiceController: ObservableObject {
     private var silenceTask: Task<Void, Never>?
     private var followUpTask: Task<Void, Never>?
     private var conversationActive = false    // a turn happened; keep the window open
-    private let followUpSeconds: UInt64 = 30
+    private let followUpSeconds: UInt64 = 45  // stay conversational a bit longer
     private let wakeWords = ["jarvis"]   // bare name; addressee is judged by the 2B
 
     private let speech = SpeechService()
     private let tts = TTSService()          // AVSpeechSynthesizer — fallback voice
     private let kokoro = KokoroTTSService() // natural Jarvis voice (local server)
+    private let ducker = AudioDucker()      // dim background music while speaking
+    private let gender = VoiceGender()      // Sir/Ma'am from voice pitch
     private unowned let client: OrchestratorClient
 
     init(client: OrchestratorClient) {
         self.client = client
         speech.onPartial = { [weak self] in self?.handlePartial($0) }
         speech.onFinal = { [weak self] in self?.handleFinal($0) }
+        let g = gender   // capture the non-isolated analyzer (audio thread, no main-actor hop)
+        speech.onBuffer = { buffer in g.process(buffer) }
         tts.onSpeakingChange = { [weak self] speaking in self?.handleSpeaking(speaking) }
         kokoro.onSpeakingChange = { [weak self] speaking in self?.handleSpeaking(speaking) }
         // If the Kokoro server is down, speak with AVSpeechSynthesizer instead.
@@ -130,6 +144,7 @@ final class VoiceController: ObservableObject {
         guard !speech.isRunning else { return }
         do {
             try speech.start()
+            gender.reset()
             mode = newMode
             isListening = true
             partial = ""
@@ -179,20 +194,19 @@ final class VoiceController: ObservableObject {
         let wasMode = mode
         mode = .off
         silenceTask?.cancel()
+        gender.finalize()   // resolve Sir/Ma'am from this utterance's pitch
 
         switch wasMode {
         case .pushToTalk:
-            dispatch(text)            // follow-up opens after the reply is spoken
+            dispatchVoice(text, triage: false)   // follow-up opens after the reply is spoken
         case .wakeCapturing:
             // Send the whole utterance (incl. the name) for addressee triage;
             // the orchestrator decides if Jarvis was actually addressed.
-            let utterance = text.trimmingCharacters(in: .whitespacesAndNewlines)
-            if utterance.isEmpty { resumeWakeIfEnabled() }
-            else { client.sendPrompt(utterance, triage: true) }
+            dispatchVoice(text, triage: true)
         case .followUp:
             let cmd = text.trimmingCharacters(in: .whitespacesAndNewlines)
             if cmd.isEmpty { startFollowUp() }   // nothing said — keep the window open
-            else { dispatch(cmd) }
+            else { dispatchVoice(cmd, triage: false) }
         default:
             resumeWakeIfEnabled()
         }
@@ -208,20 +222,64 @@ final class VoiceController: ObservableObject {
         }
     }
 
-    private func dispatch(_ text: String) {
+    /// Send a voice command with the resolved honorific, attaching a screenshot
+    /// (screen intent) or now-playing track (music intent) when relevant.
+    private func dispatchVoice(_ text: String, triage: Bool) {
         let cmd = text.trimmingCharacters(in: .whitespacesAndNewlines)
-        guard !cmd.isEmpty else { resumeWakeIfEnabled(); return }
-        client.sendPrompt(cmd)
+        guard !cmd.isEmpty else { if !triage { resumeWakeIfEnabled() }; return }
+        let h = resolvedHonorific()
+        if isScreenIntent(cmd) {
+            Task {
+                let img = await ScreenContext.captureMainDisplayPNGBase64()
+                client.sendPrompt(cmd, triage: triage, honorific: h, imageBase64: img)
+            }
+            return
+        }
+        let np = isMusicIntent(cmd) ? NowPlaying.current() : nil
+        client.sendPrompt(cmd, triage: triage, honorific: h, nowPlaying: np)
+    }
+
+    /// HUD eye button — capture the screen and ask Jarvis to look.
+    func lookAtScreen() {
+        Task {
+            let img = await ScreenContext.captureMainDisplayPNGBase64()
+            client.sendPrompt("Look at my screen and tell me what's on it and anything notable.",
+                              honorific: resolvedHonorific(), imageBase64: img)
+        }
+    }
+
+    private func resolvedHonorific() -> String? {
+        switch addressMode {
+        case .auto: return gender.current == .none ? nil : gender.current.rawValue
+        case .sir: return "sir"
+        case .maam: return "maam"
+        case .none: return nil
+        }
+    }
+
+    private func isScreenIntent(_ t: String) -> Bool {
+        let l = t.lowercased()
+        return l.contains("my screen") || l.contains("on screen") || l.contains("looking at")
+            || (l.contains("look at") && (l.contains("this") || l.contains("screen")))
+    }
+    private func isMusicIntent(_ t: String) -> Bool {
+        let l = t.lowercased()
+        return l.contains("what's playing") || l.contains("what is playing")
+            || l.contains("this song") || l.contains("current track") || l.contains("what song")
     }
 
     // MARK: - TTS coordination
 
     private func handleSpeaking(_ speaking: Bool) {
         if speaking {
-            // Don't let the mic hear Jarvis.
+            // Dim background music (per setting) and don't let the mic hear Jarvis.
+            ducker.mode = audioMode
+            ducker.dimLevel = Int(dimLevel)
+            ducker.duck()
             followUpTask?.cancel()
             if mode != .off && mode != .pushToTalk { speech.stop(); isListening = false; mode = .off }
         } else {
+            ducker.restore()
             client.state = .idle
             // After a reply, stay conversational for a window (no wake word needed),
             // otherwise fall back to wake-word listening.

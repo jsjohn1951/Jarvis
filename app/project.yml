@@ -23,8 +23,10 @@ targets:
       path: Jarvis/Info.plist
       properties:
         LSUIElement: true
-        NSMicrophoneUsageDescription: "Jarvis listens for your voice commands and the \"Hey Jarvis\" wake word, on-device."
+        NSMicrophoneUsageDescription: "Jarvis listens for your voice commands and the \"Jarvis\" wake word, on-device."
         NSSpeechRecognitionUsageDescription: "Jarvis transcribes your spoken commands on-device using Apple's Speech framework."
+        NSAppleEventsUsageDescription: "Jarvis dims background music (Spotify / Apple Music) while it speaks, and can tell you what's playing."
+        NSScreenCaptureUsageDescription: "Jarvis captures a screenshot when you ask it to look at your screen."
     settings:
       base:
         PRODUCT_BUNDLE_IDENTIFIER: com.jarvis.app

@@ -8,10 +8,12 @@ import { config } from "./config.js";
 export async function* quickStream(
   prompt: string,
   system?: string,
+  history: { role: "user" | "assistant"; content: string }[] = [],
   maxTokens = 512,
 ): AsyncGenerator<string> {
   const messages = [
     ...(system ? [{ role: "system", content: system }] : []),
+    ...history,
     { role: "user", content: prompt },
   ];
   const res = await fetch(`${config.quickUrl}/chat/completions`, {
@@ -56,6 +58,6 @@ export async function* quickStream(
 /** Non-streaming convenience used by the dispatcher. */
 export async function quickComplete(prompt: string, system?: string, maxTokens = 256): Promise<string> {
   let out = "";
-  for await (const t of quickStream(prompt, system, maxTokens)) out += t;
+  for await (const t of quickStream(prompt, system, [], maxTokens)) out += t;
   return out.trim();
 }
