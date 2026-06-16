@@ -36,7 +36,14 @@ if [[ -x "$TTS_PY" ]]; then
     until curl -sf http://127.0.0.1:8082/health >/dev/null 2>&1; do sleep 1; done
     echo "      ready"
   else
-    echo "      already running"
+    # Something already holds :8082. If it's the OTHER engine, the switch would
+    # silently no-op (wrong voice), so warn instead of claiming success.
+    RUNNING_ENGINE="$(curl -sf http://127.0.0.1:8082/health | sed -n 's/.*"engine":"\([a-z]*\)".*/\1/p')"
+    if [[ -n "$RUNNING_ENGINE" && "$RUNNING_ENGINE" != "$TTS_ENGINE" ]]; then
+      echo "      ⚠️  $RUNNING_ENGINE is already on :8082 — run scripts/stop-jarvis.sh first to switch to $TTS_ENGINE"
+    else
+      echo "      already running"
+    fi
   fi
 else
   echo "      skipped — $TTS_ENGINE venv not set up (app falls back to AVSpeech). See docs/VOICE.md"

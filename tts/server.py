@@ -39,7 +39,7 @@ class SpeechReq(BaseModel):
 
 @app.get("/health")
 def health():
-    return {"ok": True, "voice": DEFAULT_VOICE}
+    return {"ok": True, "engine": "kokoro", "voice": DEFAULT_VOICE}
 
 
 @app.post("/v1/audio/speech")
