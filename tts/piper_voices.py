@@ -159,6 +159,9 @@ def start_download(voice_id: str) -> dict:
         _dl_state[voice_id] = {"state": "downloading"}
 
     def run():
+        # Reads module globals (voice_urls, voice_path, VOICES_DIR) at execution
+        # time rather than capturing them, so tests can patch them before the
+        # thread runs. Keep them as globals — don't "fix" into closure captures.
         onnx_url, json_url = voice_urls(voice_id)
         dest_onnx = voice_path(voice_id)
         dest_json = dest_onnx + ".json"
