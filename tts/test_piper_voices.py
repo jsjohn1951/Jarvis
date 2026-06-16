@@ -23,14 +23,26 @@ def test_voice_urls_underscored_name():
     assert "/en_GB/northern_english_male/medium/" in onnx2, onnx2
 
 
-def test_catalog_status_marks_default_downloaded():
-    rows = pv.catalog_with_status()
-    by_id = {r["id"]: r for r in rows}
-    assert by_id["en_GB-alan-medium"]["downloaded"] is True   # ships with repo
-    # A voice that isn't on disk reports False.
-    assert by_id["en_US-amy-medium"]["downloaded"] is False
-    # Each row carries the fields the HUD needs.
-    assert {"id", "name", "gender", "downloaded"} <= set(rows[0].keys())
+def test_catalog_status_reflects_disk_and_has_hud_fields():
+    # Isolate VOICES_DIR so the result is independent of which models are
+    # actually downloaded on this machine: stage one catalog voice as present,
+    # leave another absent, and assert catalog_with_status reflects that.
+    original = pv.VOICES_DIR
+    with tempfile.TemporaryDirectory() as d:
+        pv.VOICES_DIR = d
+        try:
+            present = pv.voice_path("en_GB-alan-medium")
+            open(present, "wb").close()
+            open(present + ".json", "wb").close()
+
+            rows = pv.catalog_with_status()
+            by_id = {r["id"]: r for r in rows}
+            assert by_id["en_GB-alan-medium"]["downloaded"] is True   # staged above
+            assert by_id["en_US-amy-medium"]["downloaded"] is False   # not staged
+            # Each row carries the fields the HUD needs.
+            assert {"id", "name", "gender", "downloaded"} <= set(rows[0].keys())
+        finally:
+            pv.VOICES_DIR = original
 
 
 def test_is_downloaded_isolated(tmp=None):

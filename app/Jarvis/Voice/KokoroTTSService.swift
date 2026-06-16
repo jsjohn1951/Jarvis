@@ -61,7 +61,7 @@ final class KokoroTTSService: NSObject, AVAudioPlayerDelegate {
         req.httpMethod = "POST"
         req.timeoutInterval = 30
         req.setValue("application/json", forHTTPHeaderField: "content-type")
-        let voiceId = UserDefaults.standard.string(forKey: "piperVoice") ?? "en_GB-alan-medium"
+        let voiceId = UserDefaults.standard.string(forKey: "piperVoice") ?? PiperVoiceModel.defaultId
         req.httpBody = try JSONSerialization.data(withJSONObject: ["input": text, "voice": voiceId])
         let (data, resp) = try await URLSession.shared.data(for: req)
         guard (resp as? HTTPURLResponse)?.statusCode == 200, !data.isEmpty else {
