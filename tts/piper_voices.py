@@ -60,3 +60,63 @@ def is_downloaded(voice_id: str) -> bool:
 
 def catalog_with_status() -> list[dict]:
     return [{**v, "downloaded": is_downloaded(v["id"])} for v in CATALOG]
+
+
+def render_wav(voice, text: str) -> bytes:
+    """Synthesize `text` to a complete in-memory WAV via the stdlib `wave`.
+
+    Piper streams audio in chunks; we assemble them deterministically. Empty
+    input yields a valid silent WAV at the voice's own rate so the endpoint
+    never 500s on a blank request.
+    """
+    chunks = list(voice.synthesize(text)) if text.strip() else []
+    buf = io.BytesIO()
+    with wave.open(buf, "wb") as wf:
+        if chunks:
+            first = chunks[0]
+            wf.setnchannels(first.sample_channels)
+            wf.setsampwidth(first.sample_width)
+            wf.setframerate(first.sample_rate)
+            for c in chunks:
+                wf.writeframes(c.audio_int16_bytes)
+        else:
+            wf.setnchannels(1)
+            wf.setsampwidth(2)
+            wf.setframerate(voice.config.sample_rate)
+    return buf.getvalue()
+
+
+class VoiceManager:
+    """Holds exactly one loaded PiperVoice; swaps it lazily on request.
+
+    Only the active voice stays resident (~60 MB). A lock serializes load+synth
+    because FastAPI runs sync endpoints in a threadpool, so a swap can race a
+    concurrent synth otherwise. `load_fn` is injected (PiperVoice.load in prod,
+    a stub in tests) to keep this class importable without onnxruntime.
+    """
+
+    def __init__(self, load_fn):
+        self._load_fn = load_fn
+        self._lock = threading.Lock()
+        self._id: str | None = None
+        self._voice = None
+
+    @property
+    def loaded_id(self) -> str | None:
+        return self._id
+
+    def _ensure(self, voice_id: str):
+        if self._id != voice_id:
+            self._voice = self._load_fn(voice_path(voice_id))
+            self._id = voice_id
+        return self._voice
+
+    def synth_wav(self, text: str, voice_id: str = "") -> bytes:
+        # Fall back to the loaded (or default) voice if the requested one isn't
+        # downloaded or is blank — never 500 on a bad/absent id.
+        with self._lock:
+            if voice_id and is_downloaded(voice_id):
+                target = voice_id
+            else:
+                target = self._id or DEFAULT_VOICE_ID
+            return render_wav(self._ensure(target), text)

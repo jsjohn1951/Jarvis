@@ -51,6 +51,43 @@ def test_is_downloaded_isolated(tmp=None):
             pv.VOICES_DIR = original
 
 
+class _FakeChunk:
+    sample_channels = 1
+    sample_width = 2
+    sample_rate = 22050
+    audio_int16_bytes = b"\x00\x01" * 100
+
+
+class _FakeVoice:
+    class config:
+        sample_rate = 22050
+
+    def synthesize(self, text):
+        return [_FakeChunk()] if text.strip() else []
+
+
+def test_manager_loads_once_and_swaps_on_change(monkeypatch_downloaded=True):
+    calls = []
+
+    def fake_load(path):
+        calls.append(path)
+        return _FakeVoice()
+
+    # Pretend every requested voice is on disk so synth uses the asked id.
+    pv.is_downloaded = lambda vid: True
+    mgr = pv.VoiceManager(load_fn=fake_load)
+
+    wav1 = mgr.synth_wav("hello", "en_GB-alan-medium")
+    wav2 = mgr.synth_wav("again", "en_GB-alan-medium")   # same id → no reload
+    assert wav1[:4] == b"RIFF" and wav2[:4] == b"RIFF"
+    assert len(calls) == 1, calls
+    assert mgr.loaded_id == "en_GB-alan-medium"
+
+    mgr.synth_wav("switch", "en_US-amy-medium")           # new id → one reload
+    assert len(calls) == 2, calls
+    assert mgr.loaded_id == "en_US-amy-medium"             # only one held
+
+
 def run_all():
     for name, fn in sorted(globals().items()):
         if name.startswith("test_") and callable(fn):
