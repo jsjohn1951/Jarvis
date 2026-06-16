@@ -15,6 +15,7 @@ trap 'kill "$SRV" 2>/dev/null || true' EXIT
 
 # Wait up to 60s for health (first start loads the model + warms up).
 for _ in $(seq 1 60); do
+  kill -0 "$SRV" 2>/dev/null || { echo "FAIL: server exited early"; cat /tmp/jarvis_piper_smoke.log; exit 1; }
   curl -sf "http://127.0.0.1:$PORT/health" >/dev/null 2>&1 && break
   sleep 1
 done

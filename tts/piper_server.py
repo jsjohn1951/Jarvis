@@ -40,9 +40,12 @@ def synth_wav(text: str) -> bytes:
             for c in chunks:
                 wf.writeframes(c.audio_int16_bytes)
         else:
+            # No chunks (empty input): a valid silent WAV at the voice's own rate.
+            # Piper output is always mono 16-bit PCM; the rate is voice-specific,
+            # so read it from the model rather than hardcoding a single voice's value.
             wf.setnchannels(1)
             wf.setsampwidth(2)
-            wf.setframerate(22050)
+            wf.setframerate(voice.config.sample_rate)
     return buf.getvalue()
 
 
