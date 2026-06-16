@@ -24,13 +24,16 @@ All voice is **on-device** — no cloud STT, no Whisper build, no Python audio d
 ## Text-to-speech
 Two engines, chosen automatically. Text is cleaned first — **code fences, markdown, and emoji stripped**, length capped — so Jarvis narrates, never reading code (or "robot face") aloud. Toggled by **VOICE** in the HUD.
 
-### Primary — Kokoro (natural neural voice)
-A local [Kokoro-82M](https://huggingface.co/hexgrad/Kokoro-82M) server (Apache-2.0) provides a natural **British-male** voice. The app POSTs the reply to `:8082` and plays the returned WAV ([KokoroTTSService.swift](../app/Jarvis/Voice/KokoroTTSService.swift)). Runs on Apple Silicon via onnxruntime's CoreML provider (~0.75 real-time on M3 Pro). Default voice **`bm_george`**; alternatives `bm_fable`, `bm_lewis`, `bm_daniel`. Setup + run: [tts/README.md](../tts/README.md) (started automatically by `start-jarvis.sh`).
+### Primary — Piper (default neural voice)
+A local [Piper](https://github.com/OHF-Voice/piper1-gpl) server provides the default **British-male** voice **`en_GB-alan`** (Received Pronunciation). The app POSTs the reply to `:8082` and plays the returned WAV ([KokoroTTSService.swift](../app/Jarvis/Voice/KokoroTTSService.swift)) — the same OpenAI-compatible contract, so the app is engine-agnostic. Runs on Apple Silicon. Setup + run: [tts/README.md](../tts/README.md) (started automatically by `start-jarvis.sh`).
+
+### Alternative — Kokoro
+Set `JARVIS_TTS_ENGINE=kokoro` to use [Kokoro-82M](https://huggingface.co/hexgrad/Kokoro-82M) (Apache-2.0) instead — a natural British-male voice, default **`bm_george`** (alternatives `bm_fable`, `bm_lewis`, `bm_daniel`), via onnxruntime's CoreML provider (~0.75 real-time on M3 Pro). Both engines serve `:8082`; only one runs at a time.
 
 ### Fallback — AVSpeechSynthesizer
-If the Kokoro server is down, the app falls back to `AVSpeechSynthesizer` ([TTSService.swift](../app/Jarvis/Voice/TTSService.swift)). Its chooser (`bestJarvisVoice()`) prefers a British-male voice (picks **Daniel (en-GB)** here). For a less robotic fallback, download an enhanced voice once: **System Settings → Accessibility → Spoken Content → System Voice → Manage Voices → English (UK) → Daniel (Enhanced)** (or Oliver/Arthur/Jamie).
+If the TTS server (Piper or Kokoro) is down, the app falls back to `AVSpeechSynthesizer` ([TTSService.swift](../app/Jarvis/Voice/TTSService.swift)). Its chooser (`bestJarvisVoice()`) prefers a British-male voice (picks **Daniel (en-GB)** here). For a less robotic fallback, download an enhanced voice once: **System Settings → Accessibility → Spoken Content → System Voice → Manage Voices → English (UK) → Daniel (Enhanced)** (or Oliver/Arthur/Jamie).
 
-> Note: the real J.A.R.V.I.S. voice (Paul Bettany) is a copyrighted performance — not available as open source and not cloned here. Kokoro's British-male voices are the natural, license-clean alternative.
+> Note: the real J.A.R.V.I.S. voice (Paul Bettany) is a copyrighted performance — not available as open source and not cloned here. The Piper `en_GB-alan` and Kokoro British-male voices are the open, license-respecting alternatives.
 
 ## Background music — dim, not mute
 Toggle **AUDIO** in the HUD: **Mix** (leave other audio alone), **Dim** (lower Spotify/Apple Music to the slider %, default 30%, while Jarvis speaks, then restore), **Mute**. Implemented in [AudioDucker.swift](../app/Jarvis/Voice/AudioDucker.swift) via Apple Events — so it dims *only* those players (other sources like browser audio are left alone). Needs Automation permission.
