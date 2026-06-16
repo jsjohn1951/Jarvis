@@ -33,6 +33,24 @@ def test_catalog_status_marks_default_downloaded():
     assert {"id", "name", "gender", "downloaded"} <= set(rows[0].keys())
 
 
+def test_is_downloaded_isolated(tmp=None):
+    # Portable check independent of which models ship on disk: point VOICES_DIR
+    # at a temp dir, then toggle the .onnx/.onnx.json pair.
+    original = pv.VOICES_DIR
+    with tempfile.TemporaryDirectory() as d:
+        pv.VOICES_DIR = d
+        try:
+            vid = "en_US-amy-medium"
+            assert pv.is_downloaded(vid) is False          # nothing on disk
+            onnx = pv.voice_path(vid)
+            open(onnx, "wb").close()
+            assert pv.is_downloaded(vid) is False          # .json sidecar missing
+            open(onnx + ".json", "wb").close()
+            assert pv.is_downloaded(vid) is True            # both present
+        finally:
+            pv.VOICES_DIR = original
+
+
 def run_all():
     for name, fn in sorted(globals().items()):
         if name.startswith("test_") and callable(fn):
