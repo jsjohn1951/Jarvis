@@ -28,4 +28,15 @@ code=$(curl -s -o "$OUT" -w "%{http_code}" -X POST "http://127.0.0.1:$PORT/v1/au
 [[ "$(head -c 4 "$OUT")" == "RIFF" ]] || { echo "FAIL: not a RIFF/WAV file"; exit 1; }
 [[ "$(dd if="$OUT" bs=1 skip=8 count=4 2>/dev/null)" == "WAVE" ]] || { echo "FAIL: missing WAVE magic"; exit 1; }
 
+# /voices lists the catalog with the default voice already downloaded.
+VOICES_JSON=$(curl -sf "http://127.0.0.1:$PORT/voices") || { echo "FAIL: /voices errored"; exit 1; }
+echo "$VOICES_JSON" | grep -q '"en_GB-alan-medium"' || { echo "FAIL: default voice missing from /voices"; exit 1; }
+echo "$VOICES_JSON" | grep -q '"downloaded":true' || { echo "FAIL: no downloaded voice reported"; exit 1; }
+
+# Synth with an explicit (downloaded) voice id still returns a valid WAV.
+code=$(curl -s -o "$OUT" -w "%{http_code}" -X POST "http://127.0.0.1:$PORT/v1/audio/speech" \
+  -H "content-type: application/json" -d '{"input":"Voice selected.","voice":"en_GB-alan-medium"}')
+[[ "$code" == "200" ]] || { echo "FAIL: voiced POST returned HTTP $code"; exit 1; }
+[[ "$(head -c 4 "$OUT")" == "RIFF" ]] || { echo "FAIL: voiced response not a WAV"; exit 1; }
+
 echo "piper-smoke: OK ($(wc -c < "$OUT" | tr -d ' ') bytes)"
