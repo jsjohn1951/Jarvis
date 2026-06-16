@@ -120,3 +120,63 @@ class VoiceManager:
             else:
                 target = self._id or DEFAULT_VOICE_ID
             return render_wav(self._ensure(target), text)
+
+
+# Per-voice download state for the HUD to poll.
+# state: "absent" | "downloading" | "ready" | "error"
+_dl_state: dict[str, dict] = {}
+_dl_lock = threading.Lock()
+
+
+def download_state(voice_id: str) -> dict:
+    if is_downloaded(voice_id):
+        return {"state": "ready"}
+    with _dl_lock:
+        return dict(_dl_state.get(voice_id, {"state": "absent"}))
+
+
+def _fetch(url: str, dest: str) -> None:
+    """Download `url` → `dest` atomically: write `.part`, then rename."""
+    tmp = dest + ".part"
+    with urllib.request.urlopen(url, timeout=60) as r, open(tmp, "wb") as f:
+        while True:
+            chunk = r.read(1 << 16)
+            if not chunk:
+                break
+            f.write(chunk)
+    os.replace(tmp, dest)
+
+
+def start_download(voice_id: str) -> dict:
+    """Begin a background download if needed; return current state at once."""
+    if voice_id not in _CATALOG_IDS:
+        return {"state": "error", "error": "unknown voice"}
+    if is_downloaded(voice_id):
+        return {"state": "ready"}
+    with _dl_lock:
+        if _dl_state.get(voice_id, {}).get("state") == "downloading":
+            return {"state": "downloading"}
+        _dl_state[voice_id] = {"state": "downloading"}
+
+    def run():
+        onnx_url, json_url = voice_urls(voice_id)
+        dest_onnx = voice_path(voice_id)
+        dest_json = dest_onnx + ".json"
+        try:
+            os.makedirs(VOICES_DIR, exist_ok=True)
+            _fetch(json_url, dest_json)
+            _fetch(onnx_url, dest_onnx)
+            with _dl_lock:
+                _dl_state[voice_id] = {"state": "ready"}
+        except Exception as e:
+            # Leave no partial files behind; surface the error to the HUD.
+            for p in (dest_onnx, dest_json, dest_onnx + ".part", dest_json + ".part"):
+                try:
+                    os.remove(p)
+                except OSError:
+                    pass
+            with _dl_lock:
+                _dl_state[voice_id] = {"state": "error", "error": str(e)}
+
+    threading.Thread(target=run, daemon=True).start()
+    return {"state": "downloading"}

@@ -93,6 +93,50 @@ def test_manager_loads_once_and_swaps_on_change():
         pv.is_downloaded = original_is_downloaded
 
 
+def test_download_atomic_from_local_source():
+    import time
+
+    original_voices_dir = pv.VOICES_DIR
+    original_voice_urls = pv.voice_urls
+    with tempfile.TemporaryDirectory() as src, tempfile.TemporaryDirectory() as dst:
+        # Stand up fake "remote" files and serve them over file:// URLs.
+        onnx_src = os.path.join(src, "x.onnx")
+        json_src = os.path.join(src, "x.onnx.json")
+        with open(onnx_src, "wb") as f:
+            f.write(b"ONNXDATA" * 1000)
+        with open(json_src, "wb") as f:
+            f.write(b'{"audio": {"sample_rate": 22050}}')
+
+        vid = "en_US-amy-medium"
+        pv.VOICES_DIR = dst                       # download target
+        pv._dl_state.clear()
+        pv.voice_urls = lambda v: (
+            "file://" + onnx_src, "file://" + json_src
+        )
+
+        try:
+            assert pv.download_state(vid)["state"] == "absent"
+            assert pv.start_download(vid)["state"] == "downloading"
+
+            for _ in range(50):                       # wait for the bg thread
+                if pv.download_state(vid)["state"] == "ready":
+                    break
+                time.sleep(0.1)
+            assert pv.download_state(vid)["state"] == "ready"
+            assert pv.is_downloaded(vid)              # both files present
+            # No partial files left behind.
+            assert not os.path.exists(pv.voice_path(vid) + ".part")
+            assert not os.path.exists(pv.voice_path(vid) + ".json.part")
+        finally:
+            pv.VOICES_DIR = original_voices_dir
+            pv.voice_urls = original_voice_urls
+            pv._dl_state.clear()
+
+
+def test_download_unknown_voice_errors():
+    assert pv.start_download("nope-bad-medium")["state"] == "error"
+
+
 def run_all():
     for name, fn in sorted(globals().items()):
         if name.startswith("test_") and callable(fn):
