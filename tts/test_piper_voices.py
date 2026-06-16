@@ -66,7 +66,7 @@ class _FakeVoice:
         return [_FakeChunk()] if text.strip() else []
 
 
-def test_manager_loads_once_and_swaps_on_change(monkeypatch_downloaded=True):
+def test_manager_loads_once_and_swaps_on_change():
     calls = []
 
     def fake_load(path):
@@ -74,18 +74,23 @@ def test_manager_loads_once_and_swaps_on_change(monkeypatch_downloaded=True):
         return _FakeVoice()
 
     # Pretend every requested voice is on disk so synth uses the asked id.
+    # Restore afterwards so this process-global patch can't leak into other tests.
+    original_is_downloaded = pv.is_downloaded
     pv.is_downloaded = lambda vid: True
-    mgr = pv.VoiceManager(load_fn=fake_load)
+    try:
+        mgr = pv.VoiceManager(load_fn=fake_load)
 
-    wav1 = mgr.synth_wav("hello", "en_GB-alan-medium")
-    wav2 = mgr.synth_wav("again", "en_GB-alan-medium")   # same id → no reload
-    assert wav1[:4] == b"RIFF" and wav2[:4] == b"RIFF"
-    assert len(calls) == 1, calls
-    assert mgr.loaded_id == "en_GB-alan-medium"
+        wav1 = mgr.synth_wav("hello", "en_GB-alan-medium")
+        wav2 = mgr.synth_wav("again", "en_GB-alan-medium")   # same id → no reload
+        assert wav1[:4] == b"RIFF" and wav2[:4] == b"RIFF"
+        assert len(calls) == 1, calls
+        assert mgr.loaded_id == "en_GB-alan-medium"
 
-    mgr.synth_wav("switch", "en_US-amy-medium")           # new id → one reload
-    assert len(calls) == 2, calls
-    assert mgr.loaded_id == "en_US-amy-medium"             # only one held
+        mgr.synth_wav("switch", "en_US-amy-medium")           # new id → one reload
+        assert len(calls) == 2, calls
+        assert mgr.loaded_id == "en_US-amy-medium"             # only one held
+    finally:
+        pv.is_downloaded = original_is_downloaded
 
 
 def run_all():
