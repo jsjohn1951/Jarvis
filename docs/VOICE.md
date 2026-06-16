@@ -27,6 +27,8 @@ Two engines, chosen automatically. Text is cleaned first — **code fences, mark
 ### Primary — Piper (default neural voice)
 A local [Piper](https://github.com/OHF-Voice/piper1-gpl) server provides the default **British-male** voice **`en_GB-alan`** (Received Pronunciation). The app POSTs the reply to `:8082` and plays the returned WAV ([KokoroTTSService.swift](../app/Jarvis/Voice/KokoroTTSService.swift)) — the same OpenAI-compatible contract, so the app is engine-agnostic. Runs on Apple Silicon. Setup + run: [tts/README.md](../tts/README.md) (started automatically by `start-jarvis.sh`).
 
+The HUD has a **voice dropdown** (waveform icon, below the settings row): pick any voice from a curated English catalog (British + American, male + female). Voices download on demand into [tts/voices/](../tts/voices/) the first time they're selected (~60 MB each, shown with "⤓" until downloaded) and only the active voice is held in memory. The choice persists across launches; default stays `en_GB-alan`.
+
 ### Alternative — Kokoro
 Set `JARVIS_TTS_ENGINE=kokoro` to use [Kokoro-82M](https://huggingface.co/hexgrad/Kokoro-82M) (Apache-2.0) instead — a natural British-male voice, default **`bm_george`** (alternatives `bm_fable`, `bm_lewis`, `bm_daniel`), via onnxruntime's CoreML provider (~0.75 real-time on M3 Pro). Both engines serve `:8082`; only one runs at a time.
 

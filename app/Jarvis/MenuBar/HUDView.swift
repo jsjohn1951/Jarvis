@@ -8,6 +8,7 @@ struct HUDView: View {
     @ObservedObject var voice: VoiceController
     @State private var input = ""
     @State private var micDown = false
+    @StateObject private var piperVoices = PiperVoiceModel()
     @FocusState private var inputFocused: Bool
     @Environment(\.openWindow) private var openWindow
 
@@ -20,13 +21,17 @@ struct HUDView: View {
             healthRow
             voiceRow
             settingsRow
+            voicePickerRow
             commandField
         }
         .padding(16)
         .frame(width: 380)
         .background(Theme.base)
         .overlay(CornerBrackets().padding(6))
-        .onAppear { client.requestHealth(); client.requestRegistry(); inputFocused = true }
+        .onAppear {
+            client.requestHealth(); client.requestRegistry(); inputFocused = true
+            Task { await piperVoices.refresh() }
+        }
     }
 
     // MARK: pieces
@@ -201,6 +206,36 @@ struct HUDView: View {
                     .strokeBorder(Theme.outline.opacity(0.4), lineWidth: 1))
         }
         .buttonStyle(.plain)
+    }
+
+    // Piper TTS voice selection. The menu shows the current voice name; voices
+    // not yet downloaded are marked "⤓" and fetched on selection (spinner shown).
+    private var voicePickerRow: some View {
+        HStack(spacing: 8) {
+            Image(systemName: "waveform")
+                .font(.system(size: 12, weight: .semibold))
+                .foregroundStyle(Theme.onSurfaceVariant)
+            Picker("", selection: Binding(
+                get: { piperVoices.selectedId },
+                set: { id in Task { await piperVoices.select(id) } }
+            )) {
+                ForEach(piperVoices.voices) { v in
+                    Text(v.downloaded ? v.name : "\(v.name)  ⤓").tag(v.id)
+                }
+            }
+            .labelsHidden()
+            .tint(Theme.primary)
+            .font(Theme.body)
+            .disabled(piperVoices.downloadingId != nil)
+
+            if piperVoices.downloadingId != nil {
+                ProgressView().controlSize(.mini)
+            }
+            Spacer()
+            if let e = piperVoices.errorText {
+                Text(e).font(Theme.mono).foregroundStyle(Theme.alert)
+            }
+        }
     }
 
     private var commandField: some View {
