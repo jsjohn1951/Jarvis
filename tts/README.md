@@ -63,3 +63,6 @@ The Piper engine (`piper-tts` / `piper1-gpl`) is GPL-3.0; the `en_GB-alan` voice
 model is permissively licensed. Piper runs as its own process (the app only talks
 HTTP to it on :8082), so it does not affect the app's licensing. Kokoro remains
 the Apache-2.0 option.
+
+### Voice catalog (HUD dropdown)
+The server exposes `GET /voices` (catalog + downloaded status), `POST /voices/{id}/download`, and `GET /voices/{id}/status`. The app's dropdown lists a curated English set and downloads a voice's `.onnx`/`.onnx.json` on first selection. The active voice is chosen per request via the `voice` field of `/v1/audio/speech`; only one voice is resident at a time. The catalog lives in [piper_voices.py](piper_voices.py).
