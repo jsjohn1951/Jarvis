@@ -22,17 +22,24 @@ else
   echo "      already running"
 fi
 
-echo "[3/4] Kokoro voice (:8082)…"
-if [[ -x "$ROOT/tts/.venv/bin/python" ]]; then
+# TTS engine is selectable: piper (default, en_GB-alan) or kokoro (bm_george).
+TTS_ENGINE="${JARVIS_TTS_ENGINE:-piper}"
+if [[ "$TTS_ENGINE" == "kokoro" ]]; then
+  TTS_PY="$ROOT/tts/.venv/bin/python";       TTS_SCRIPT="$ROOT/tts/server.py";        TTS_LABEL="Kokoro voice (bm_george)"
+else
+  TTS_PY="$ROOT/tts/.venv-piper/bin/python"; TTS_SCRIPT="$ROOT/tts/piper_server.py";  TTS_LABEL="Piper voice (en_GB-alan)"
+fi
+echo "[3/4] $TTS_LABEL (:8082)…"
+if [[ -x "$TTS_PY" ]]; then
   if ! lsof -i :8082 -sTCP:LISTEN -t >/dev/null 2>&1; then
-    "$ROOT/tts/.venv/bin/python" "$ROOT/tts/server.py" >/tmp/jarvis_tts.log 2>&1 &
+    "$TTS_PY" "$TTS_SCRIPT" >/tmp/jarvis_tts.log 2>&1 &
     until curl -sf http://127.0.0.1:8082/health >/dev/null 2>&1; do sleep 1; done
-    echo "      ready (natural Jarvis voice)"
+    echo "      ready"
   else
     echo "      already running"
   fi
 else
-  echo "      skipped — venv not set up (app falls back to AVSpeech). See docs/VOICE.md"
+  echo "      skipped — $TTS_ENGINE venv not set up (app falls back to AVSpeech). See docs/VOICE.md"
 fi
 
 # Build the app if it isn't built yet, then open it.

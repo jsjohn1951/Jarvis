@@ -2,8 +2,10 @@
 *.gguf
 models/*.gguf
 
-# TTS — venv + Kokoro model blobs
+# TTS — venv + Kokoro/Piper model blobs
 tts/.venv/
+tts/.venv-piper/
+tts/voices/
 tts/*.onnx
 tts/*.bin
 
