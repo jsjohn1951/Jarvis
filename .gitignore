@@ -9,6 +9,10 @@ tts/voices/
 tts/*.onnx
 tts/*.bin
 
+# Python — bytecode caches
+__pycache__/
+*.pyc
+
 # Node
 orchestrator/node_modules/
 orchestrator/dist/
