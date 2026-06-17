@@ -32,6 +32,7 @@ final class VoiceController: ObservableObject {
     private var silenceTask: Task<Void, Never>?
     private var followUpTask: Task<Void, Never>?
     private var conversationActive = false    // a turn happened; keep the window open
+    private var speakingAck = false           // speaking the instant ack; cloud reply still coming
     private let followUpSeconds: UInt64 = 45  // stay conversational a bit longer
     private let wakeWords = ["jarvis"]   // bare name; addressee is judged by the 2B
 
@@ -60,6 +61,14 @@ final class VoiceController: ObservableObject {
         // If the Kokoro server is down, speak with AVSpeechSynthesizer instead.
         kokoro.onUnavailable = { [weak self] raw in self?.tts.speak(raw) }
         client.onIgnored = { [weak self] in self?.handleIgnored() }
+        // Instant local acknowledgment: speak it immediately while the cloud works.
+        // It is NOT a turn completion, so it must not open the follow-up window or
+        // flip state to idle (handleSpeaking honors `speakingAck`).
+        client.onAck = { [weak self] text in
+            guard let self, self.ttsEnabled, !text.isEmpty else { return }
+            self.speakingAck = true
+            self.kokoro.speak(text)
+        }
         client.onDone = { [weak self] result in
             guard let self else { return }
             self.conversationActive = true   // a turn completed → open a follow-up window after speaking
@@ -281,6 +290,10 @@ final class VoiceController: ObservableObject {
         let l = t.lowercased()
         return l.contains("my screen") || l.contains("on screen") || l.contains("looking at")
             || (l.contains("look at") && (l.contains("this") || l.contains("screen")))
+            // "take a screenshot" → attach the REAL screen (ScreenCaptureKit) so Jarvis
+            // never substitutes a browser screenshot.
+            || l.contains("screenshot") || l.contains("screen shot")
+            || l.contains("take a picture") || (l.contains("capture") && l.contains("screen"))
     }
     /// App-control phrasing — routes to the `desktop` agent and attaches a screenshot
     /// so Jarvis can see the UI it's about to act on.
@@ -310,6 +323,12 @@ final class VoiceController: ObservableObject {
             if mode != .off && mode != .pushToTalk { speech.stop(); isListening = false; mode = .off }
         } else {
             ducker.restore()
+            // The ack just finished, but the real (cloud) reply is still coming — keep
+            // the turn alive: don't go idle, don't resume listening yet.
+            if speakingAck {
+                speakingAck = false
+                return
+            }
             client.state = .idle
             // After a reply, stay conversational for a window (no wake word needed),
             // otherwise fall back to wake-word listening.

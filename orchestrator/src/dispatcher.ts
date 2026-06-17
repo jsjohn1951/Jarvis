@@ -17,6 +17,41 @@ export async function isAddressed(text: string): Promise<boolean> {
 }
 
 /**
+ * Is this utterance an approval of a parked plan ("yes, go ahead")? Used by the
+ * dev/coder plan-and-confirm gate. Fast regex for the obvious cases; falls back to
+ * the 2B for anything ambiguous. Defaults to NO on error so we never run code the
+ * user didn't approve.
+ */
+export async function isAffirmation(text: string): Promise<boolean> {
+  const t = text.toLowerCase().trim();
+  if (/^(yes|yeah|yep|yup|sure|ok|okay|go ahead|do it|proceed|go for it|sounds good|please do|let'?s go|make it so|affirmative)\b/.test(t))
+    return true;
+  if (/^(no|nope|nah|don'?t|stop|cancel|wait|hold on|not yet)\b/.test(t))
+    return false;
+  const reply = await quickComplete(
+    `The assistant proposed a plan and asked the user to confirm. Does this reply APPROVE proceeding? Reply ONLY "YES" or "NO".\n\nReply: ${text}`,
+    'You are an approval classifier. Output exactly "YES" or "NO".',
+    4,
+  ).catch(() => "NO");
+  return /\byes\b/i.test(reply);
+}
+
+/**
+ * Can the local 2B answer this factual question confidently from its own knowledge,
+ * or should we escalate to a tool-using cloud agent (web/research) rather than let
+ * it guess? Cheap self-assessment; defaults to confident on error so we don't
+ * needlessly burn cloud capacity when the check itself fails.
+ */
+export async function answersConfidently(text: string): Promise<boolean> {
+  const reply = await quickComplete(
+    `Could you answer the following accurately and confidently from what you already know, WITHOUT guessing or making anything up? Reply ONLY "YES" or "NO".\n\nQuestion: ${text}`,
+    'You judge your own certainty honestly. Output exactly "YES" or "NO".',
+    4,
+  ).catch(() => "YES");
+  return /\byes\b/i.test(reply);
+}
+
+/**
  * Decide which agent should handle a command.
  *
  * Policy (this is the main judgement call in Jarvis — tune it to taste):
@@ -38,9 +73,18 @@ export async function dispatch(text: string): Promise<{ agent: string; via: stri
     return { agent: "reviewer", via: "keyword" };
   if (/\b(plan|break (this|it) down|steps to|roadmap|outline (a|the)|design (a|the))\b/.test(t))
     return { agent: "planner", via: "keyword" };
-  // Coder (write a file live in the editor) must beat both `desktop` ("in vscode")
-  // and `dev` ("write/build/create") — it needs the verb AND an editor/live cue.
-  if (/\b(write|build|create|code|implement|make)\b.*\b(in vs ?code|in the editor|live|so i can watch|while i watch|watch you (code|write|type))\b/.test(t))
+  // Screen capture and editor/app LAUNCHING → desktop agent. It can SEE the screen
+  // (capture_screen) and drive apps (open_target / AppleScript); it must never reach
+  // for a web browser to take a "screenshot" or to open VS Code. Checked before coder
+  // so "open visual studio code" launches the app rather than being read as "code".
+  if (/\b(screenshot|screen ?shot|capture (the |my )?screen|take a (screen|picture)|what'?s on (my |the )?screen|open (vs ?code|visual studio code|the editor|code))\b/.test(t))
+    return { agent: "desktop", via: "keyword" };
+  // Coder (write a whole file live in the editor) must beat `web` and `dev`. It needs
+  // a write verb AND an editor/file/live cue — tested independently so the cue may come
+  // before OR after the verb ("write X in VS Code" OR "in VS Code, write X"). Broadened
+  // so editor coding reliably lands here, not on `dev`.
+  if (/\b(write|build|create|code|implement|make|generate)\b/.test(t) &&
+      /\b(vs ?code|visual studio code|the editor|in (a|the) file|a (new )?file|live|watch (you|me)|type it out|so i can (see|watch))\b/.test(t))
     return { agent: "coder", via: "keyword" };
   // Web (open a browser/app and navigate) and desktop (control an on-screen app)
   // come BEFORE dev so their phrasing wins over dev's broad imperative match.

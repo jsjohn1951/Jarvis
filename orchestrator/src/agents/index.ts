@@ -23,9 +23,15 @@ export const AGENTS: Record<string, AgentDef> = {
     description:
       "Real software work in the current repo: write/edit code, run commands, debug, refactor, explain the codebase.",
     tier: "hybrid",
-    allowedTools: ["Read", "Edit", "Write", "Bash", "Glob", "Grep"],
+    allowedTools: ["Read", "Edit", "Write", "Bash", "Glob", "Grep", "Task"],
     systemPrompt:
-      "You are Jarvis's dev agent operating inside the user's repository. Be concise; the user hears your summary spoken aloud, so lead with the outcome in one or two sentences.",
+      "You are Jarvis's dev agent operating inside the user's repository. " +
+      "Division of labor: YOU (the cloud model) do the thinking — understand the request, inspect the " +
+      "code, and decide the approach. Delegate the concrete implementation (edits, mechanical changes, " +
+      "running commands) to local subagents via the Task tool (use the `local-code` and `local-explore` " +
+      "subagents, which run for free on the local model) rather than doing all the typing yourself. " +
+      "Keep each delegated step small and well-specified. Be concise; the user hears your summary spoken " +
+      "aloud, so lead with the outcome in one or two sentences.",
     cwd: config.repoDir,
   },
   coder: {
@@ -123,8 +129,29 @@ export const AGENTS: Record<string, AgentDef> = {
   },
 };
 
-/** Greeting used when the user just says/types the wake word with no command. */
-export const GREETING_PROMPT =
-  "The user addressed you by name with no further request. Respond with one short, in-character greeting offering help.";
+/** Local part-of-day, so a bare-name greeting matches the clock instead of
+ *  defaulting to "good morning". Computed here (Node `Date`), never left to the
+ *  2B — small models have no clock and guess. */
+export function partOfDay(d: Date = new Date()): "morning" | "afternoon" | "evening" | "night" {
+  const h = d.getHours();
+  if (h < 5) return "night";
+  if (h < 12) return "morning";
+  if (h < 17) return "afternoon";
+  if (h < 22) return "evening";
+  return "night";
+}
+
+/** Greeting used when the user just says/types the wake word with no command.
+ *  Time-aware: the part-of-day is injected so the greeting matches the clock. */
+export function greetingPrompt(now: Date = new Date()): string {
+  return (
+    "The user addressed you by name with no further request. " +
+    `It is currently ${partOfDay(now)} (local time). ` +
+    "Respond with one short, in-character greeting that fits the time of day, offering help."
+  );
+}
+
+/** @deprecated kept for back-compat; prefer greetingPrompt() for time-awareness. */
+export const GREETING_PROMPT = greetingPrompt();
 
 export const DEFAULT_AGENT = "dev";

@@ -1,0 +1,10 @@
+Jarvis
+Copyright 2026 Willem Johannes Smith
+
+This product is licensed under the Apache License, Version 2.0 (see LICENSE).
+
+Jarvis is a native-macOS control surface over an existing local/cloud LLM stack.
+It does not vendor that stack: the AI model weights, inference engines, and
+text-to-speech engines it uses are downloaded at runtime or run as separate
+processes, each under its own license. See THIRD_PARTY_LICENSES.md for the
+component manifest and the licenses (including model-weight terms) that apply.

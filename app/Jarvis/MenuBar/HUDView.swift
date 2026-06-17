@@ -6,6 +6,8 @@ import AppKit
 struct HUDView: View {
     @ObservedObject var client: OrchestratorClient
     @ObservedObject var voice: VoiceController
+    /// Set when hosted in the floating panel — shows a close button that hides it.
+    var onClose: (() -> Void)? = nil
     @State private var input = ""
     @State private var micDown = false
     @StateObject private var piperVoices = PiperVoiceModel()
@@ -26,7 +28,7 @@ struct HUDView: View {
         }
         .padding(16)
         .frame(width: 380)
-        .background(Theme.base)
+        .glassSurface()
         .overlay(CornerBrackets().padding(6))
         .onAppear {
             client.requestHealth(); client.requestRegistry(); inputFocused = true
@@ -70,6 +72,14 @@ struct HUDView: View {
             Text(client.connected ? "ONLINE" : "OFFLINE")
                 .font(Theme.label()).tracking(1.5)
                 .foregroundStyle(Theme.onSurfaceVariant)
+            if let onClose {
+                Button(action: onClose) {
+                    Image(systemName: "xmark").font(.system(size: 12, weight: .semibold))
+                        .foregroundStyle(Theme.onSurfaceVariant)
+                }
+                .buttonStyle(.plain).help("Hide")
+                .keyboardShortcut(.cancelAction)
+            }
         }
     }
 

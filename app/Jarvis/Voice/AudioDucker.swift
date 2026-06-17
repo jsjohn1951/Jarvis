@@ -17,7 +17,13 @@ final class AudioDucker {
     var mode: AudioMode = .dim
     var dimLevel: Int = 30                 // 0–100, used in .dim
     private var saved: [String: Int] = [:] // player → volume before ducking
-    private let players = ["Spotify", "Music"]
+
+    /// Only the players actually INSTALLED on this Mac. Probing an absent app (e.g.
+    /// Spotify when it isn't installed) wastes an Apple Event and triggers a needless
+    /// Automation permission prompt, so we never touch it.
+    private var players: [String] {
+        MediaPlayer.installed.map(\.name)
+    }
 
     func duck() {
         guard mode != .mix, saved.isEmpty else { return }

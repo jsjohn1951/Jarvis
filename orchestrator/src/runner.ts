@@ -3,6 +3,15 @@ import { config } from "./config.js";
 import type { AgentDef } from "./agents/index.js";
 import * as fallback from "./fallback.js";
 import * as providers from "./providers.js";
+import { decomposeLocal, stepPrompt } from "./local-plan.js";
+
+/**
+ * MCP plugin servers the hybrid agents must never use. Jarvis owns real screen
+ * capture and app launching natively (capture_screen / open_target), so a headless
+ * browser must not stand in for "take a screenshot" or "open VS Code". Listing the
+ * `mcp__<server>` prefix disallows every tool that server exposes.
+ */
+const BROWSER_PLUGINS = ["mcp__plugin_playwright_playwright"];
 
 export type RunEvent =
   | { type: "text"; delta: string }
@@ -41,6 +50,13 @@ export async function* runHybrid(
      * the editor). When off, behaviour is unchanged (one delta per text block).
      */
     partial?: boolean;
+    /**
+     * When the chain falls all the way to the local GGUF (cloud unavailable), first
+     * DECOMPOSE the task into small steps and run them sequentially, so the limited
+     * local model never has to hold the whole problem at once. Off for `coder` (its
+     * live-typing marker protocol must run as one stream).
+     */
+    decompose?: boolean;
   } = {},
 ): AsyncGenerator<RunEvent> {
   // With an image, the prompt must be a streamed user message carrying an image
@@ -67,14 +83,21 @@ export async function* runHybrid(
   // One run against a given model. Yields events; THROWS on an error result so
   // the caller can decide whether to fall back. The SDK reports a failed turn
   // either by throwing from the iterator or by a result message with is_error.
-  const attempt = async function* (model: string): AsyncGenerator<RunEvent> {
+  const attempt = async function* (model: string, promptArg?: any): AsyncGenerator<RunEvent> {
     const stream = query({
-      prompt: makePrompt(),
+      prompt: promptArg ?? makePrompt(),
       options: {
         model,
         cwd: agent.cwd ?? config.repoDir,
         allowedTools: agent.allowedTools,
         mcpServers: opts.mcpServers,         // in-process desktop/web tools (bound to the app ws)
+        // We keep filesystem settings loaded so the local-code/local-explore subagents
+        // (~/.claude/agents) are available for delegation — but under bypassPermissions
+        // that also exposes globally-installed MCP plugins. Block the browser plugins so
+        // the agent can't take a "screenshot" via a headless browser or open pages in
+        // one: real screen capture goes through the jarvis capture_screen tool, and apps
+        // open via open_target. (Listing the server prefix blocks all of its tools.)
+        disallowedTools: BROWSER_PLUGINS,
         systemPrompt: opts.system ?? agent.systemPrompt,
         permissionMode: "bypassPermissions", // headless: no interactive prompts
         maxTurns: 24,
@@ -124,10 +147,23 @@ export async function* runHybrid(
     if (i > 0) yield { type: "fallback" };   // app shows "via: local-fallback"
 
     let toolRan = false;
+    // Full-local fallback (last tier, local GGUF): decompose into small steps and run
+    // them in sequence so the limited local model never juggles the whole task.
+    const decomposeHere = opts.decompose && model === config.localModel && !opts.imageBase64;
     try {
-      for await (const ev of attempt(model)) {
-        if (ev.type === "tool") toolRan = true;
-        yield ev;
+      if (decomposeHere) {
+        const steps = await decomposeLocal(prompt);
+        for (let s = 0; s < steps.length; s++) {
+          for await (const ev of attempt(model, stepPrompt(prompt, steps[s], s, steps.length))) {
+            if (ev.type === "tool") toolRan = true;
+            yield ev;
+          }
+        }
+      } else {
+        for await (const ev of attempt(model)) {
+          if (ev.type === "tool") toolRan = true;
+          yield ev;
+        }
       }
       if (isCloud) fallback.reset();   // a clean cloud run clears any stale breaker state
       return;                          // success on this provider — done

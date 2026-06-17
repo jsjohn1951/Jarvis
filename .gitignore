@@ -39,3 +39,6 @@ memory/screenshots/
 node_modules
 editor-extension/out/
 *.vsix
+
+# Legal
+legal

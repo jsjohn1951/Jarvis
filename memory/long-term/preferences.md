@@ -25,3 +25,11 @@ How the user likes things done. One fact per line.
 - Prefers VS Code as their development environment.
 - Prefers to open/create files in the current VS Code window rather than a new one.
 - Prefers modular function separation for testability when writing code.
+- Prefers local model inference over cloud-based where available.
+- Prefers detailed clarification before generating spreadsheets from incomplete or ambiguous data.
+- Values steelmaning and cross-checking AI outputs; treats AI output as a first draft requiring human review.
+- Identifies as an AI tool user rather than an AI system developer.
+- Interested in AI bias mitigation and prompt engineering techniques.
+- Prefers Spotify over YouTube for music playback.
+- Prefers the assistant to pronounce URLs rather than read them out verbatim.
+- Prefers video content over text descriptions when both are available.

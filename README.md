@@ -110,4 +110,10 @@ cd app && xcodegen generate && xcodebuild -scheme Jarvis -derivedDataPath ./Deri
 ## Documentation
 [ARCHITECTURE](docs/ARCHITECTURE.md) · [SETUP](docs/SETUP.md) · [MEMORY](docs/MEMORY.md) · [VOICE](docs/VOICE.md) · [MODELS](docs/MODELS.md) · [AGENTS](docs/AGENTS.md) · [DESIGN](docs/DESIGN.md) · [TROUBLESHOOTING](docs/TROUBLESHOOTING.md)
 
+## License
+Jarvis is licensed under the [Apache License 2.0](LICENSE) — this covers the original
+Jarvis code only. The AI model weights, inference engines, and TTS engines it uses are
+not bundled here and remain under their own licenses (some restrict commercial use).
+See [THIRD_PARTY_LICENSES.md](THIRD_PARTY_LICENSES.md) and [NOTICE](NOTICE).
+
 > Auth reminder: cloud work uses your **Claude Pro subscription** via the `claude` login. Never set `ANTHROPIC_API_KEY`. The quick tier, voice, memory capture/retrieval, and all model work default to **$0 / offline**; only cloud agents and long-term consolidation use the subscription.

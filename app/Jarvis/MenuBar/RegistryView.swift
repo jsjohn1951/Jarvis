@@ -12,6 +12,8 @@ struct RegistryView: View {
             VStack(alignment: .leading, spacing: 20) {
                 title
                 clusterOverview
+                sectionLabel("LIVE_CLUSTER  ·  agents this turn")
+                GlassPanel { AgentGraphView(nodes: client.agentGraph) }
                 sectionLabel("AGENT_REGISTRY")
                 LazyVGrid(columns: columns, spacing: 12) {
                     ForEach(client.agents) { agent in agentCard(agent) }
@@ -22,13 +24,14 @@ struct RegistryView: View {
             .padding(24)
         }
         .frame(minWidth: 560, minHeight: 480)
-        .background(Theme.base)
+        .glassSurface()
+        .allowsFullScreen()
         .onAppear { client.requestRegistry() }
     }
 
     private var title: some View {
         HStack {
-            Text("A.R.V.I.S — CONTROL").font(Theme.display(20)).tracking(2)
+            Text("J.A.R.V.I.S — CONTROL").font(Theme.display(20)).tracking(2)
                 .foregroundStyle(Theme.onSurface)
             Spacer()
             HStack(spacing: 4) {
@@ -85,13 +88,17 @@ struct RegistryView: View {
                     .foregroundStyle(agent.tier == "local" ? Theme.primary : Theme.onSurfaceVariant)
             }
             Text(agent.description).font(Theme.body).foregroundStyle(Theme.onSurfaceVariant)
+                .lineLimit(3)
                 .fixedSize(horizontal: false, vertical: true)
+            // Push the optional badge to the bottom so every card matches height.
+            Spacer(minLength: 0)
             if active {
                 Text("● ACTIVE").font(Theme.label()).tracking(1.5).foregroundStyle(Theme.primary)
             }
         }
         .padding(14)
-        .frame(maxWidth: .infinity, alignment: .leading)
+        // Uniform card height regardless of description length (3-line cap above).
+        .frame(maxWidth: .infinity, minHeight: 132, alignment: .topLeading)
         .background(Theme.surfaceContainer.opacity(0.5))
         .overlay(RoundedRectangle(cornerRadius: Theme.radius)
             .strokeBorder(active ? Theme.primary.opacity(0.6) : Theme.outline.opacity(0.3), lineWidth: 1))

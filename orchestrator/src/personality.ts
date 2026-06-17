@@ -9,6 +9,17 @@ import { config } from "./config.js";
  */
 let cached: string | null = null;
 
+/**
+ * Applies to every agent (especially the small local tier, which is prone to
+ * confabulation). Don't invent facts; verify or admit uncertainty instead of
+ * guessing. The orchestrator escalates uncertain local answers to tool-using
+ * agents, but the instruction reinforces honest behavior everywhere.
+ */
+const HONESTY =
+  "Accuracy over confidence: never invent file paths, APIs, command names, numbers, or facts. " +
+  "If you are not sure, say so plainly and either look it up with your tools (web search, reading " +
+  "files, running commands) or offer to — do not guess or make something up.";
+
 export function systemBase(): string {
   if (cached !== null) return cached;
   try {
@@ -22,5 +33,6 @@ export function systemBase(): string {
   } catch {
     cached = "You are Jarvis, the user's calm, capable AI assistant. Be concise; replies are read aloud.";
   }
+  cached += "\n\n" + HONESTY;
   return cached;
 }

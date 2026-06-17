@@ -13,6 +13,21 @@ struct AgentInfo: Identifiable, Hashable {
     var id: String { name }
 }
 
+/// A live node in the agent graph — one phase the orchestrator drove this turn
+/// (interpret / ack / plan / implement / fallback). Drives the node-graph view.
+struct AgentNode: Identifiable, Hashable {
+    enum Status: String { case spawning, thinking, working, done }
+    let id: String
+    var name: String
+    var parent: String?
+    var tier: String        // "hybrid" (cloud) | "local"
+    var role: String        // interpret | ack | plan | implement | answer | fallback
+    var status: Status = .spawning
+    var thought: String = ""
+    var tools: [String] = []
+    var ok = true
+}
+
 /// Single WebSocket connection to the orchestrator (ws://127.0.0.1:7777).
 /// Publishes everything the HUD renders; auto-reconnects.
 @MainActor
@@ -26,6 +41,7 @@ final class OrchestratorClient: ObservableObject {
     @Published var health = Health()
     @Published var toolTrail: [String] = []  // tools the hybrid agent invoked
     @Published var agents: [AgentInfo] = []  // registry (for the expanded window)
+    @Published var agentGraph: [AgentNode] = []  // live agent graph for the current turn
     @Published var models: [String] = []     // available GGUFs
     @Published var currentModel = ""         // GGUF loaded on :8080
 
@@ -33,6 +49,10 @@ final class OrchestratorClient: ObservableObject {
     var onDone: ((String) -> Void)?
     /// Called when a wake capture was judged NOT addressed to Jarvis (no reply).
     var onIgnored: (() -> Void)?
+    /// Instant local acknowledgment to speak immediately, before the cloud reply.
+    var onAck: ((String) -> Void)?
+    /// The 2B confirmed the speaker addressed Jarvis — reveal the floating HUD.
+    var onAddressed: (() -> Void)?
 
     private var task: URLSessionWebSocketTask?
     private let url = URL(string: "ws://127.0.0.1:7777")!
@@ -60,6 +80,7 @@ final class OrchestratorClient: ObservableObject {
         lastUserText = text
         transcript = ""
         toolTrail = []
+        agentGraph = []
         state = .thinking
         var msg: [String: Any] = ["type": "prompt", "text": text]
         if let agent { msg["agent"] = agent }
@@ -142,6 +163,38 @@ final class OrchestratorClient: ObservableObject {
             state = .idle
             lastUserText = ""
             onIgnored?()
+        case "addressed":
+            // The 2B confirmed Jarvis was addressed — reveal the floating HUD.
+            onAddressed?()
+        case "ack":
+            // Instant local acknowledgment — speak it now, before the cloud reply.
+            if let text = obj["text"] as? String, !text.isEmpty { onAck?(text) }
+        case "agent_spawn":
+            if let id = obj["id"] as? String {
+                agentGraph.append(AgentNode(
+                    id: id,
+                    name: obj["name"] as? String ?? "?",
+                    parent: obj["parent"] as? String,
+                    tier: obj["tier"] as? String ?? "",
+                    role: obj["role"] as? String ?? "",
+                    status: .working
+                ))
+            }
+        case "agent_thought":
+            if let id = obj["id"] as? String, let i = agentGraph.firstIndex(where: { $0.id == id }) {
+                agentGraph[i].thought += obj["text"] as? String ?? ""
+                agentGraph[i].status = .thinking
+            }
+        case "agent_tool":
+            if let id = obj["id"] as? String, let i = agentGraph.firstIndex(where: { $0.id == id }) {
+                if let name = obj["name"] as? String { agentGraph[i].tools.append(name) }
+                agentGraph[i].status = .working
+            }
+        case "agent_done":
+            if let id = obj["id"] as? String, let i = agentGraph.firstIndex(where: { $0.id == id }) {
+                agentGraph[i].status = .done
+                agentGraph[i].ok = obj["ok"] as? Bool ?? true
+            }
         case "error":
             state = .alert
             transcript = "⚠︎ " + (obj["message"] as? String ?? "error")
