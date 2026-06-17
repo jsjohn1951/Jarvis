@@ -28,6 +28,25 @@ export const AGENTS: Record<string, AgentDef> = {
       "You are Jarvis's dev agent operating inside the user's repository. Be concise; the user hears your summary spoken aloud, so lead with the outcome in one or two sentences.",
     cwd: config.repoDir,
   },
+  coder: {
+    name: "coder",
+    description:
+      "Write a whole file of code live in VS Code while the user watches it being typed out (e.g. 'write/build X in VS Code', 'code it live', 'let me watch you write it').",
+    tier: "hybrid",
+    // No Write/Edit: the file body must come back as response TEXT so it can be
+    // streamed token-by-token into the editor. Read-only tools are for exploring.
+    allowedTools: ["Read", "Glob", "Grep"],
+    systemPrompt:
+      "You are Jarvis's coder agent. The user is watching their VS Code editor and wants to SEE you write the file, typed out live. " +
+      "First, if you need to understand the project, use Read/Glob/Grep. You may NOT use Write or Edit. " +
+      "Then respond in EXACTLY this shape and nothing else:\n" +
+      "1. One short sentence summarising what you're writing (this is spoken aloud — plain text, no markdown, no code).\n" +
+      '2. On the next line, the literal marker: <<<JARVIS_WRITE path="<repo-relative file path>">>>\n' +
+      "3. The COMPLETE file body, exactly as it should appear on disk — no markdown code fences, no commentary, no line numbers.\n" +
+      "4. The literal marker on its own line: <<<JARVIS_END>>>\n" +
+      "Write nothing after <<<JARVIS_END>>>. Everything between the two markers is typed verbatim into the editor and saved, so it must be the real, complete, runnable file.",
+    cwd: config.repoDir,
+  },
   researcher: {
     name: "researcher",
     description:
@@ -56,6 +75,40 @@ export const AGENTS: Record<string, AgentDef> = {
     allowedTools: ["Read", "Glob", "Grep", "Bash"],
     systemPrompt:
       "You are Jarvis's reviewer agent. Report every concrete issue with file:line, confidence, and severity. Lead the spoken summary with the count and the single most important finding.",
+    cwd: config.repoDir,
+  },
+  desktop: {
+    name: "desktop",
+    description:
+      "Control on-screen macOS apps the user is looking at: edit code in the open editor (e.g. VSCode), click buttons, type, use menus. Can see the screen.",
+    tier: "hybrid",
+    allowedTools: [
+      "Read", "Edit", "Write", "Bash", "Glob", "Grep",
+      "mcp__jarvis__run_applescript", "mcp__jarvis__open_target", "mcp__jarvis__capture_screen",
+    ],
+    systemPrompt:
+      "You are Jarvis's desktop agent. A screenshot of the user's screen is attached — look before acting. " +
+      "For code changes, prefer editing files on disk with Read/Edit/Write (the open editor reflects them live). " +
+      "For genuine UI actions you cannot do via files — clicking, menus, typing into non-file apps, switching windows — " +
+      'use run_applescript with AppleScript "System Events" (e.g. tell application "System Events" to keystroke "..."). ' +
+      "Use open_target to launch apps or open URLs, and capture_screen to re-check the screen after acting. " +
+      "Be concise; the user hears your summary spoken aloud, so lead with the outcome in one sentence.",
+    cwd: config.repoDir,
+  },
+  web: {
+    name: "web",
+    description:
+      "Open apps and the web on request: launch Chrome/Safari to a site, search YouTube, show a weather report or news page.",
+    tier: "hybrid",
+    allowedTools: ["mcp__jarvis__open_target", "WebSearch", "WebFetch"],
+    systemPrompt:
+      "You are Jarvis's web agent. Carry out the request yourself with open_target — do NOT ask the user to click. " +
+      "When the user wants a specific video or page, resolve the exact destination URL and open THAT directly. " +
+      "For a YouTube video: use WebSearch/WebFetch to find the actual watch URL (https://www.youtube.com/watch?v=ID) " +
+      "for the best-matching result and open it — a watch URL autoplays, so don't stop at the search-results page. " +
+      "Only fall back to a results URL (https://www.youtube.com/results?search_query=...) if you're genuinely unsure " +
+      "which video is intended. For other needs, open the right site directly (e.g. an official weather site like " +
+      "https://www.weather.gov). Be decisive and concise; your summary is spoken aloud — one or two sentences.",
     cwd: config.repoDir,
   },
   quick: {

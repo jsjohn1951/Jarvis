@@ -74,6 +74,14 @@ final class OrchestratorClient: ObservableObject {
     func requestRegistry() { send(json: ["type": "agents"]); send(json: ["type": "models"]) }
     func swapModel(_ file: String) { send(json: ["type": "swap", "model": file]) }
 
+    /// Push alternate-provider config (Ollama Cloud fallback) to the orchestrator.
+    func sendProviderConfig(enabled: Bool, model: String, apiKey: String) {
+        send(json: [
+            "type": "provider_config", "provider": "ollama",
+            "enabled": enabled, "model": model, "apiKey": apiKey,
+        ])
+    }
+
     // MARK: - Plumbing
 
     private func send(json: [String: Any]) {
@@ -115,6 +123,11 @@ final class OrchestratorClient: ObservableObject {
         case "agent":
             activeAgent = obj["name"] as? String ?? ""
             agentVia = obj["via"] as? String ?? ""
+        case "reset":
+            // The orchestrator switched to a fallback provider — discard the
+            // partial answer so only the provider that completes is shown.
+            transcript = ""
+            toolTrail = []
         case "text":
             if let delta = obj["delta"] as? String { transcript += delta }
         case "tool":
@@ -151,7 +164,29 @@ final class OrchestratorClient: ObservableObject {
         case "models":
             models = obj["list"] as? [String] ?? []
             currentModel = obj["current"] as? String ?? ""
+        case "act":
+            // The orchestrator's desktop/web agent is asking the app to perform a
+            // system action (open app/URL, run AppleScript, capture screen). Execute
+            // it here — the app holds the Automation / Screen Recording grants — and
+            // reply with the matching id so the agent's tool call resolves.
+            handleAct(obj)
         default: break
+        }
+    }
+
+    private func handleAct(_ obj: [String: Any]) {
+        guard let id = obj["id"] as? String else { return }
+        let action = obj["action"] as? String ?? ""
+        let app = obj["app"] as? String
+        let url = obj["url"] as? String
+        let script = obj["script"] as? String
+        Task { @MainActor in
+            let r = await Actuator.run(action: action, app: app, url: url, script: script)
+            var msg: [String: Any] = ["type": "act_result", "id": id, "ok": r.ok]
+            if let o = r.output { msg["output"] = o }
+            if let img = r.image { msg["image"] = img }
+            if let e = r.error { msg["error"] = e }
+            self.send(json: msg)
         }
     }
 }

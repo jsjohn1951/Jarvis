@@ -38,6 +38,16 @@ export async function dispatch(text: string): Promise<{ agent: string; via: stri
     return { agent: "reviewer", via: "keyword" };
   if (/\b(plan|break (this|it) down|steps to|roadmap|outline (a|the)|design (a|the))\b/.test(t))
     return { agent: "planner", via: "keyword" };
+  // Coder (write a file live in the editor) must beat both `desktop` ("in vscode")
+  // and `dev` ("write/build/create") — it needs the verb AND an editor/live cue.
+  if (/\b(write|build|create|code|implement|make)\b.*\b(in vs ?code|in the editor|live|so i can watch|while i watch|watch you (code|write|type))\b/.test(t))
+    return { agent: "coder", via: "keyword" };
+  // Web (open a browser/app and navigate) and desktop (control an on-screen app)
+  // come BEFORE dev so their phrasing wins over dev's broad imperative match.
+  if (/\b(open (youtube|chrome|google|safari|firefox|a video|the weather|a website|a tab)|search (for |youtube|the web)|on youtube|play .* on youtube|weather (in|for|report|forecast|today)|look (it|this) up online)\b/.test(t))
+    return { agent: "web", via: "keyword" };
+  if (/\b(in vs ?code|in chrome|in safari|in the (editor|browser|app|window)|click|double-click|scroll (up|down)|switch to|focus (the )?(window|app)|keystroke|the menu|menu bar|select all)\b/.test(t))
+    return { agent: "desktop", via: "keyword" };
   if (/\b(edit|fix|refactor|implement|add|write|create|rename|delete|remove|run|build|commit|install|update|change|move|generate|make (a|the)|open the)\b/.test(t))
     return { agent: "dev", via: "keyword" };
   // Factual / conceptual questions → instant local answer.

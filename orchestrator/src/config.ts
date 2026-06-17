@@ -24,6 +24,17 @@ export const config = {
   // straight to local for this long before the next one probes the cloud again.
   fallbackCooldownMs: Number(process.env.JARVIS_FALLBACK_COOLDOWN_MS ?? 5 * 60_000),
 
+  // Optional second cloud provider (e.g. Ollama Cloud) tried as a fallback BEFORE
+  // local. The key + model are supplied at runtime via the app's `provider_config`
+  // and persisted to providersFile, which the router reads to route + authenticate.
+  providersFile: process.env.JARVIS_PROVIDERS_FILE ?? join(homedir(), ".claude", "router", "providers.json"),
+  ollamaBaseUrl: process.env.JARVIS_OLLAMA_BASE_URL ?? "https://ollama.com/v1",
+
+  // Shared secret gating the privileged "editor" role on the :7777 socket. Generated
+  // on first run, persisted 0600, and read by the VS Code extension so a random local
+  // process can't register as the editor and receive the coder code stream.
+  editorTokenFile: process.env.JARVIS_EDITOR_TOKEN_FILE ?? join(homedir(), ".jarvis", "editor-token"),
+
   // Where the `dev` agent operates. Defaults to the user's home — set per-project.
   repoDir: process.env.JARVIS_REPO ?? homedir(),
 

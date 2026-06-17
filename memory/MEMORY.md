@@ -8,3 +8,4 @@ Curation appends durable facts to the right spoke and keeps this index current.
 - [projects](long-term/projects.md) — ongoing work, goals, repos, context
 - [people](long-term/people.md) — names and relationships the user mentions
 - [facts](long-term/facts.md) — durable facts about the user and their setup
+- [skills](long-term/skills.md) — capabilities Jarvis can perform on request (Excel, scripts, etc.)

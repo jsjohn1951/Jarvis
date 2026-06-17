@@ -13,6 +13,8 @@ final class VoiceController: ObservableObject {
 
     @Published var partial = ""
     @Published var isListening = false
+    @Published var micLevels: [Float] = Array(repeating: 0, count: VoiceController.waveBars)
+    static let waveBars = 28
     @Published var wakeWordEnabled = false
     @Published var ttsEnabled = true
     @Published var followUpEnabled = true     // stay conversational after a reply
@@ -38,14 +40,21 @@ final class VoiceController: ObservableObject {
     private let kokoro = KokoroTTSService() // natural Jarvis voice (local server)
     private let ducker = AudioDucker()      // dim background music while speaking
     private let gender = VoiceGender()      // Sir/Ma'am from voice pitch
+    private let meter = AudioLevelMeter()   // mic loudness → HUD waveform
     private unowned let client: OrchestratorClient
 
     init(client: OrchestratorClient) {
         self.client = client
         speech.onPartial = { [weak self] in self?.handlePartial($0) }
         speech.onFinal = { [weak self] in self?.handleFinal($0) }
-        let g = gender   // capture the non-isolated analyzer (audio thread, no main-actor hop)
-        speech.onBuffer = { buffer in g.process(buffer) }
+        // Capture the non-isolated analyzers (audio thread, no main-actor hop). Both
+        // the gender estimator and the loudness meter read each mic buffer.
+        let g = gender
+        let m = meter
+        speech.onBuffer = { buffer in g.process(buffer); m.process(buffer) }
+        meter.onLevel = { [weak self] level in
+            Task { @MainActor in self?.pushLevel(level) }
+        }
         tts.onSpeakingChange = { [weak self] speaking in self?.handleSpeaking(speaking) }
         kokoro.onSpeakingChange = { [weak self] speaking in self?.handleSpeaking(speaking) }
         // If the Kokoro server is down, speak with AVSpeechSynthesizer instead.
@@ -145,6 +154,7 @@ final class VoiceController: ObservableObject {
         do {
             try speech.start()
             gender.reset()
+            micLevels = Array(repeating: 0, count: Self.waveBars)
             mode = newMode
             isListening = true
             partial = ""
@@ -165,6 +175,13 @@ final class VoiceController: ObservableObject {
         conversationActive = false
         mode = .off
         partial = ""
+    }
+
+    /// Append the latest mic loudness, scrolling the bar window (newest on the right).
+    private func pushLevel(_ level: Float) {
+        guard isListening else { return }
+        micLevels.removeFirst()
+        micLevels.append(level)
     }
 
     // MARK: - Recognition callbacks
@@ -228,7 +245,10 @@ final class VoiceController: ObservableObject {
         let cmd = text.trimmingCharacters(in: .whitespacesAndNewlines)
         guard !cmd.isEmpty else { if !triage { resumeWakeIfEnabled() }; return }
         let h = resolvedHonorific()
-        if isScreenIntent(cmd) {
+        // Screen questions ("look at my screen") AND desktop-control commands ("in
+        // VSCode…", "click…") both attach a screenshot so the vision-capable agent
+        // can see the foreground app before acting on it.
+        if isScreenIntent(cmd) || isDesktopIntent(cmd) {
             Task {
                 let img = await ScreenContext.captureMainDisplayPNGBase64()
                 client.sendPrompt(cmd, triage: triage, honorific: h, imageBase64: img)
@@ -261,6 +281,16 @@ final class VoiceController: ObservableObject {
         let l = t.lowercased()
         return l.contains("my screen") || l.contains("on screen") || l.contains("looking at")
             || (l.contains("look at") && (l.contains("this") || l.contains("screen")))
+    }
+    /// App-control phrasing — routes to the `desktop` agent and attaches a screenshot
+    /// so Jarvis can see the UI it's about to act on.
+    private func isDesktopIntent(_ t: String) -> Bool {
+        let l = t.lowercased()
+        return l.contains("vscode") || l.contains("vs code")
+            || l.contains("in chrome") || l.contains("in safari")
+            || l.contains("click ") || l.contains("type ")
+            || l.contains("switch to") || l.contains("the menu")
+            || (l.contains("edit") && l.contains("this"))
     }
     private func isMusicIntent(_ t: String) -> Bool {
         let l = t.lowercased()

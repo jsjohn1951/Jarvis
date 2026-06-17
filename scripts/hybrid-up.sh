@@ -33,6 +33,10 @@ else
 fi
 
 # ── router proxy ──────────────────────────────────────────────────────────────
+# The router (proxy.py) also reads ~/.claude/router/providers.json (written 0600 by
+# the orchestrator from the app's Settings) to add the Ollama-Cloud fallback tier.
+# It's read lazily per request, so no env wiring is needed here. The Ollama additions
+# to proxy.py are mirrored in scripts/router-ollama.patch for reproducibility.
 if ! listening "$ROUTER_PORT"; then
   echo "[hybrid-up] starting router on :$ROUTER_PORT"
   "$HOME/.claude/router/.venv/bin/python" "$HOME/.claude/router/proxy.py" \

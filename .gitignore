@@ -34,3 +34,8 @@ memory/screenshots/
 # Secrets
 .env
 *.local
+
+# Editor Extension
+node_modules
+editor-extension/out/
+*.vsix

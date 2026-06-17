@@ -1,0 +1,109 @@
+--- /Users/johnsmith/.claude/router/proxy.py.bak	2026-06-16 22:18:12
++++ /Users/johnsmith/.claude/router/proxy.py	2026-06-16 22:19:47
+@@ -93,6 +93,52 @@
+     return model in _LOCAL_MODEL_NAMES or "gguf" in model or model.startswith("qwen")
+ 
+ 
++# ── Alternate cloud provider (Ollama Cloud) ───────────────────────────────────
++#
++# The Jarvis orchestrator inserts an Ollama-Cloud tier into its fallback chain
++# (Claude → Ollama → local) by sending requests whose `model` is the configured
++# Ollama model. The key + model live in providers.json (written 0600 by the
++# orchestrator); we read it lazily (mtime-cached) so a settings change is picked
++# up without restarting the router. Ollama Cloud speaks the OpenAI format, so we
++# reuse the same to_openai/from_openai translation as the local path.
++OLLAMA_BASE_DEFAULT = "https://ollama.com/v1"
++_PROVIDERS_PATH = os.path.expanduser(
++    os.environ.get("JARVIS_PROVIDERS_FILE", "~/.claude/router/providers.json")
++)
++_providers_cache = {"mtime": -1.0, "data": {}}
++
++
++def _load_providers() -> dict:
++    try:
++        mtime = os.stat(_PROVIDERS_PATH).st_mtime
++    except OSError:
++        return {}
++    if mtime != _providers_cache["mtime"]:
++        try:
++            with open(_PROVIDERS_PATH) as f:
++                _providers_cache["data"] = json.load(f)
++            _providers_cache["mtime"] = mtime
++        except (json.JSONDecodeError, OSError):
++            pass
++    return _providers_cache["data"]
++
++
++def _ollama_cfg():
++    """Return the Ollama provider config iff it's enabled and usable, else None."""
++    o = _load_providers().get("ollama") or {}
++    if o.get("enabled") and o.get("apiKey") and o.get("model"):
++        return o
++    return None
++
++
++def routes_to_ollama(body: dict) -> bool:
++    o = _ollama_cfg()
++    if not o:
++        return False
++    model = body.get("model") or ""
++    return model == o["model"] or model.lower().startswith("ollama")
++
++
+ # ── Anthropic → OpenAI translation ───────────────────────────────────────────
+ 
+ def flatten_content(content) -> str:
+@@ -298,7 +344,8 @@
+ 
+ 
+ async def stream_local(
+-    oai_body: dict, message_id: str, original_model: str
++    oai_body: dict, message_id: str, original_model: str,
++    base: str = LOCAL_BASE, auth: dict = None,
+ ) -> AsyncGenerator[bytes, None]:
+ 
+     def sse(event: str, data: dict) -> bytes:
+@@ -306,7 +353,7 @@
+ 
+     async with httpx.AsyncClient(timeout=300) as client:
+         async with client.stream(
+-            "POST", f"{LOCAL_BASE}/chat/completions", json=oai_body
++            "POST", f"{base}/chat/completions", json=oai_body, headers=auth
+         ) as resp:
+             yield sse("message_start", {"type": "message_start", "message": {
+                 "id": message_id, "type": "message", "role": "assistant",
+@@ -366,6 +413,34 @@
+     streaming = body.get("stream", False)
+     model     = body.get("model", "")
+ 
++    # Ollama Cloud fallback tier — checked first so its model name can't be
++    # mistaken for a local gguf. Reuses the OpenAI translation with an auth header.
++    o = _ollama_cfg()
++    if o and routes_to_ollama(body):
++        ollama_base = o.get("baseUrl") or OLLAMA_BASE_DEFAULT
++        auth = {"authorization": f"Bearer {o['apiKey']}", "content-type": "application/json"}
++        if body.get("tools"):
++            streaming = False   # tool_call blocks only emit on the non-streaming path
++        log.info("→ ollama     model=%s stream=%s tools=%s", o["model"], streaming, bool(body.get("tools")))
++        oai = to_openai(body)
++        oai["model"] = o["model"]            # override LOCAL_MODEL with the Ollama model
++        oai["stream"] = streaming
++        oai.pop("chat_template_kwargs", None)  # Qwen3-only knob; not for Ollama
++        msg_id = f"msg_ollama_{uuid.uuid4().hex[:8]}"
++        if streaming:
++            return StreamingResponse(
++                stream_local(oai, msg_id, model, base=ollama_base, auth=auth),
++                media_type="text/event-stream",
++                headers={"cache-control": "no-cache"},
++            )
++        async with httpx.AsyncClient(timeout=300) as client:
++            resp = await client.post(f"{ollama_base}/chat/completions", json=oai, headers=auth)
++        if resp.status_code != 200 or "choices" not in (raw := resp.json() if resp.content else {}):
++            log.error("  [ollama] error status=%d body=%r", resp.status_code, resp.content[:200])
++            return Response(content=resp.content or b'{"error":{"type":"api_error","message":"empty ollama response"}}',
++                            status_code=resp.status_code or 502, media_type="application/json")
++        return from_openai(raw, model)
++
+     if not routes_to_local(body):
+         log.info("→ anthropic  model=%s stream=%s", model, streaming)
+         hdrs = upstream_headers(request)

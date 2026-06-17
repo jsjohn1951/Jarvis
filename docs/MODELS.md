@@ -53,3 +53,38 @@ Anything larger than the 2B can't co-reside with the 9B under 14.3 GB, so additi
 - The orchestrator runs [`scripts/llama-swap.sh`](../scripts/llama-swap.sh), which restarts `llama-server` with the new GGUF on `:8080`.
 
 Trade-off: the swap restarts the 9B slot, so it **interrupts in-flight local-subagent work for ~model-load time**, and the router routes local subagent calls to whatever GGUF is currently loaded there. The 2B quick tier (`:8081`) is unaffected.
+
+### Google Gemma 3 4B (selectable)
+`models/pull-models.sh` also pulls **`gemma-3-4b-it-Q4_K_M.gguf`** (~3 GB) into `~/models`. It
+auto-appears in the Registry's *Local Models* list and is hot-swappable via **LOAD** — no
+orchestrator change needed (the router routes any name containing `gguf` to `:8080`). It's a
+fast, capable alternative for chat. **Caveat:** the router's tool-call bridge injects a
+Qwen3-style `<tools>` system prompt and parses `<tool_call>` tags; Gemma (different tokenizer, no
+native Qwen tool format) follows the injected instructions but tool use is **best-effort** — fine
+for conversation, less reliable for multi-step tool agents. Qwen3.5-9B stays the wired auto-fallback.
+
+## Resilient fallback chain — Claude → Ollama Cloud → local
+
+Hybrid agents try providers in order and degrade gracefully so a Claude rate-limit never shows a
+raw error ([runner.ts](../orchestrator/src/runner.ts) `runHybrid` + `buildChain`):
+
+1. **Claude** (cloud Sonnet via the router → Pro subscription).
+2. **Ollama Cloud** — *only if configured* (the app's **Settings** ▸ gear: enable + model +
+   API key). Inserted between Claude and local; keeps tool use.
+3. **Local GGUF** (`Qwen3.5-9B`, or whatever is loaded on `:8080`).
+
+An `isClaudeUnavailable` error (capacity/rate-limit/transient — [fallback.ts](../orchestrator/src/fallback.ts))
+advances to the next provider and trips the circuit breaker; a `reset` event discards any partial
+output so the HUD/TTS only reflect the provider that completes. If a side-effecting tool already
+ran this turn, Jarvis stops instead of repeating it. If the whole chain is unavailable, it speaks a
+calm "try again shortly" line — never the raw API error.
+
+### Ollama Cloud wiring (router-level)
+The app stores the key in the Keychain and pushes `{provider_config}` over the WebSocket; the
+orchestrator writes `~/.claude/router/providers.json` (0600), which the **router** reads lazily
+(mtime-cached) to route the configured model to Ollama Cloud's OpenAI-compatible endpoint
+(`https://ollama.com/v1`) with `Authorization: Bearer <key>`, reusing the same Anthropic↔OpenAI +
+`<tool_call>` translation as the local path. The router additions are mirrored in
+[scripts/router-ollama.patch](../scripts/router-ollama.patch) for reproducibility
+(`patch ~/.claude/router/proxy.py < scripts/router-ollama.patch`); restart the router afterward
+(`scripts/hybrid-down.sh && scripts/hybrid-up.sh`).

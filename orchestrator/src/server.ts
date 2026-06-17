@@ -7,7 +7,16 @@ import { runHybrid } from "./runner.js";
 import { checkHealth } from "./lifecycle.js";
 import { listModels, getCurrentModel, swapModel } from "./models.js";
 import { systemBase } from "./personality.js";
+import { buildJarvisTools } from "./tools.js";
+import { resolveAct } from "./actuation.js";
+import { isClaudeUnavailable } from "./fallback.js";
+import * as providers from "./providers.js";
 import * as memory from "./memory.js";
+import * as vscodeBridge from "./vscode-bridge.js";
+import { CodeStreamRouter } from "./code-stream.js";
+import { writeFile, mkdir } from "node:fs/promises";
+import { dirname } from "node:path";
+import { safeResolveInBase } from "./paths.js";
 
 // ── Wire protocol (app ↔ orchestrator) ────────────────────────────────────────
 // inbound:  {type:"prompt", text, agent?}  |  {type:"health"}
@@ -17,6 +26,7 @@ type Outbound =
   | { type: "agent"; name: string; via: string }
   | { type: "text"; delta: string }
   | { type: "tool"; name: string }
+  | { type: "reset" }   // discard partial output (switching to a fallback provider)
   | { type: "done"; result: string }
   | { type: "error"; message: string }
   | { type: "ignored" }   // wake heard, but the 2B judged it wasn't addressed to Jarvis
@@ -106,16 +116,97 @@ async function handlePrompt(
         full += delta;
         send(ws, { type: "text", delta });
       }
+    } else if (def.name === "coder") {
+      // Live-coding: the model emits its file body as text (no Write tool), which we
+      // stream token-by-token into VS Code via the editor extension. `full` collects
+      // only the spoken narration — the code body is typed into the editor, never read
+      // aloud. If no editor is connected we degrade gracefully: show the code in the
+      // HUD and write it to disk on completion.
+      const histText = history.map((t) => `${t.role}: ${t.content}`).join("\n");
+      const sysWithHistory = histText ? `${system}\n\n## Recent conversation\n${histText}` : system;
+      const live = vscodeBridge.isConnected();
+      const streamId = `code-${Date.now()}`;
+
+      // The model picks the file path, so it's untrusted: refuse anything resolving
+      // outside the agent's repo (safeResolveInBase handles `..`, absolute, NUL).
+      const base = def.cwd ?? config.repoDir;
+
+      // Per-attempt write state (recreated on a provider reset so a retry starts clean).
+      let diskPath: string | null = null;
+      let diskBuffer = "";
+      let blocked = false; // path was rejected — swallow this block's code
+      const makeRouter = () => {
+        blocked = false;
+        return new CodeStreamRouter({
+          onNarration: (delta) => {
+            full += delta;
+            send(ws, { type: "text", delta });
+          },
+          onCodeBegin: (relPath) => {
+            const abs = safeResolveInBase(base, relPath);
+            if (!abs) {
+              blocked = true;
+              const note = ` (I refused to write "${relPath}" — it's outside the project.)`;
+              full += note;
+              send(ws, { type: "text", delta: note });
+              return;
+            }
+            if (live) vscodeBridge.beginStream(streamId, abs);
+            else { diskPath = abs; diskBuffer = ""; }
+          },
+          onCodeDelta: (delta) => {
+            if (blocked) return;
+            if (live) vscodeBridge.delta(streamId, delta);
+            else { diskBuffer += delta; send(ws, { type: "text", delta }); }
+          },
+          onCodeEnd: () => {
+            if (blocked) return;
+            if (live) vscodeBridge.endStream(streamId, true);
+            else if (diskPath) {
+              const path = diskPath, body = diskBuffer;
+              void mkdir(dirname(path), { recursive: true })
+                .then(() => writeFile(path, body))
+                .catch((e) => console.error("[jarvis] coder disk write failed:", e));
+            }
+          },
+        });
+      };
+
+      let router = makeRouter();
+      for await (const ev of runHybrid(def, promptText, { system: sysWithHistory, partial: true })) {
+        if (ev.type === "text") router.push(ev.delta);
+        else if (ev.type === "fallback") send(ws, { type: "agent", name: agent, via: "local-fallback" });
+        else if (ev.type === "reset") {
+          // Provider failed mid-stream: drop partial narration, un-type the editor, and
+          // start a fresh splitter so the retry types cleanly from scratch.
+          full = "";
+          if (live) vscodeBridge.abortStream(streamId);
+          router = makeRouter();
+          send(ws, { type: "reset" });
+        } else if (ev.type === "tool") send(ws, { type: "tool", name: ev.name });
+        // `result` carries the whole assistant text (code + markers) — ignore it so
+        // `full` stays narration-only for TTS.
+      }
+      router.flush();
+      if (!live) full += " I couldn't reach VS Code, so I wrote the file to disk instead.";
     } else {
       // Hybrid agents take system-only; fold the recent conversation into it.
       const histText = history.map((t) => `${t.role}: ${t.content}`).join("\n");
       const sysWithHistory = histText ? `${system}\n\n## Recent conversation\n${histText}` : system;
-      for await (const ev of runHybrid(def, promptText, { system: sysWithHistory, imageBase64: image })) {
+      // The desktop/web agents drive the app via in-process tools bound to this ws.
+      const usesJarvisTools = def.allowedTools?.some((t) => t.startsWith("mcp__jarvis__"));
+      const mcpServers = usesJarvisTools ? { jarvis: buildJarvisTools(ws) } : undefined;
+      for await (const ev of runHybrid(def, promptText, { system: sysWithHistory, imageBase64: image, mcpServers })) {
         if (ev.type === "text") {
           full += ev.delta;
           send(ws, { type: "text", delta: ev.delta });
         } else if (ev.type === "fallback") {
           send(ws, { type: "agent", name: agent, via: "local-fallback" });
+        } else if (ev.type === "reset") {
+          // A provider failed mid-stream; drop the partial answer so the HUD/TTS
+          // only ever reflect the provider that actually completes.
+          full = "";
+          send(ws, { type: "reset" });
         } else if (ev.type === "tool") {
           send(ws, { type: "tool", name: ev.name });
         } else if (ev.type === "result") {
@@ -125,7 +216,18 @@ async function handlePrompt(
     }
     send(ws, { type: "done", result: full.trim() });
   } catch (err) {
-    send(ws, { type: "error", message: err instanceof Error ? err.message : String(err) });
+    // Never surface a raw provider error. If the whole chain was unavailable,
+    // speak a calm fallback line; only genuine failures (auth, bugs) show as errors.
+    console.error("[jarvis] turn failed:", err);
+    if (isClaudeUnavailable(err)) {
+      const msg = "I can't reach the cloud or the local models right now — please try again shortly.";
+      send(ws, { type: "reset" });
+      send(ws, { type: "text", delta: msg });
+      send(ws, { type: "done", result: msg });
+      full = "";   // don't persist a failed turn
+    } else {
+      send(ws, { type: "error", message: err instanceof Error ? err.message : String(err) });
+    }
   }
   send(ws, { type: "status", state: "idle" });
 
@@ -137,6 +239,7 @@ async function handlePrompt(
 }
 
 export function startServer() {
+  vscodeBridge.ensureToken(); // create the editor secret file before the extension connects
   const wss = new WebSocketServer({ host: "127.0.0.1", port: config.wsPort });
 
   const sendAgents = (ws: WebSocket) =>
@@ -160,6 +263,15 @@ export function startServer() {
         return send(ws, { type: "error", message: "invalid JSON" });
       }
       switch (msg.type) {
+        case "hello":
+          // The VS Code extension introduces itself so we route the coder stream to
+          // it. Gated by the shared secret so an arbitrary local process can't pose as
+          // the editor; a bad/absent token closes the socket.
+          if (msg.role === "editor") {
+            if (vscodeBridge.verifyToken(msg.token)) vscodeBridge.register(ws);
+            else { console.warn("[jarvis] editor hello rejected (bad token)"); ws.close(); }
+          }
+          break;
         case "health":
           send(ws, { type: "health", ...(await checkHealth()) });
           break;
@@ -184,6 +296,15 @@ export function startServer() {
         case "prompt":
           if (typeof msg.text === "string")
             await handlePrompt(ws, msg.text, msg.agent, msg.triage === true, msg.honorific, msg.image, msg.nowPlaying);
+          break;
+        case "act_result":
+          // Reply from the app for a desktop/web tool call — resolve its pending Promise.
+          resolveAct(msg);
+          break;
+        case "provider_config":
+          // App pushed alternate-provider settings (e.g. Ollama Cloud key) — persist
+          // for the router and update the runner's fallback chain.
+          providers.applyProviderConfig(msg);
           break;
         default:
           send(ws, { type: "error", message: `unknown message: ${msg.type}` });

@@ -21,6 +21,9 @@ All voice is **on-device** — no cloud STT, no Whisper build, no Python audio d
 - **Hold the mic button** in the HUD to talk; release to send. (It also auto-ends on silence, so a tap-then-speak works too.)
 - **Global hotkey** (default **⌥Space**) via [Hotkey.swift](../app/Jarvis/Voice/Hotkey.swift) starts a one-shot listen from anywhere. System-wide keyboard monitoring requires the **Input Monitoring** privacy permission (System Settings → Privacy & Security → Input Monitoring). Without it, the hotkey only fires when the popover is focused; the mic button and wake word work regardless.
 
+## Speaking waveform (HUD)
+While you speak, the HUD's transcript panel shows a **live audio waveform** instead of echoing your transcribed words — only **Jarvis's reply** is ever shown as text. The bars are driven by per-buffer RMS loudness ([AudioLevelMeter.swift](../app/Jarvis/Voice/AudioLevelMeter.swift)), which tees off the same mic tap that feeds gender detection (so it inherits `SpeechService`'s off-main threading). [WaveformView.swift](../app/Jarvis/MenuBar/WaveformView.swift) renders the rolling `VoiceController.micLevels` window.
+
 ## Text-to-speech
 Two engines, chosen automatically. Text is cleaned first — **code fences, markdown, and emoji stripped**, length capped — so Jarvis narrates, never reading code (or "robot face") aloud. Toggled by **VOICE** in the HUD.
 
@@ -45,6 +48,7 @@ Toggle **AUDIO** in the HUD: **Mix** (leave other audio alone), **Dim** (lower S
 
 ## Screen & now-playing
 - **Look at my screen:** the eye button or "look at my screen" captures a screenshot ([ScreenContext.swift](../app/Jarvis/Context/ScreenContext.swift)) → vision agent. Needs Screen Recording permission.
+- **Control on-screen apps:** desktop-control phrasing ("in VSCode…", "click…", "type…") also attaches a screenshot and routes to the `desktop` agent, which can act on the app it sees (see [AGENTS.md](AGENTS.md) and [Actuator.swift](../app/Jarvis/Context/Actuator.swift)). Keystrokes into other apps need **Accessibility** permission.
 - **What's playing:** returns the current Spotify/Apple Music track ([NowPlaying.swift](../app/Jarvis/Context/NowPlaying.swift)).
 
 ## Permissions (granted on first use)

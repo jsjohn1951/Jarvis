@@ -12,6 +12,7 @@ Jarvis is a **native-macOS control surface over an existing local/cloud LLM stac
 |---------|------|-------------|
 | `Jarvis.app` (SwiftUI menu-bar client) | →:7777 | yes (`app/`) |
 | Orchestrator daemon (Node/TS) | 7777 ws | yes (`orchestrator/`) |
+| VS Code "Live Coder" extension (optional) | →:7777 | yes (`editor-extension/`) |
 | TTS server (Piper default / Kokoro) | 8082 | yes (`tts/`) |
 | llama.cpp 2B "quick" tier | 8081 | yes (`scripts/`) |
 | llama.cpp 9B `llama-server` | 8080 | **external** (`~/llama.cpp`) |
@@ -53,5 +54,6 @@ If `npx`/`npm` misbehave in this shell, call `./node_modules/.bin/<tool>` direct
 | Local models, GGUF hot-swap, the 18 GB budget | [docs/MODELS.md](docs/MODELS.md) |
 | Memory capture/retrieval/consolidation, personality | [docs/MEMORY.md](docs/MEMORY.md) |
 | Agent registry, tiers, dispatch policy | [docs/AGENTS.md](docs/AGENTS.md) |
+| Live coding into VS Code (coder agent, extension, token stream) | [docs/EDITOR.md](docs/EDITOR.md) |
 | Install / dependencies / first-run permissions | [README.md](README.md) · [docs/SETUP.md](docs/SETUP.md) |
 | Past design specs & implementation plans (dated) | [docs/superpowers/](docs/superpowers/) |

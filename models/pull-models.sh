@@ -17,6 +17,12 @@ pull() { # repo file
 # Speculative-decoding draft for Qwen3.5-9B (vocab 248320, verified compatible).
 pull "unsloth/Qwen3.5-2B-GGUF" "Qwen3.5-2B-Q4_K_M.gguf"
 
+# Google Gemma 3 4B — a selectable local model (hot-swap from the Registry's LOAD
+# button). Small/fast (~3 GB) and a good alternative voice for chat. Tool use is
+# best-effort (the router's Qwen3 <tool_call> translation isn't Gemma-native — see
+# docs/MODELS.md); Qwen3.5-9B stays the wired auto-fallback.
+pull "unsloth/gemma-3-4b-it-GGUF" "gemma-3-4b-it-Q4_K_M.gguf"
+
 # --- optional specialists (uncomment to fetch; hot-swapped, not co-loaded) ---
 # pull "unsloth/Qwen3.5-4B-GGUF" "Qwen3.5-4B-Q4_K_M.gguf"   # bigger local agent
 

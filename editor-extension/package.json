@@ -1,0 +1,67 @@
+{
+  "name": "jarvis-editor",
+  "displayName": "Jarvis Live Coder",
+  "description": "Lets the Jarvis orchestrator type code live into your VS Code editor.",
+  "version": "0.1.0",
+  "publisher": "jarvis",
+  "private": true,
+  "engines": {
+    "vscode": "^1.85.0"
+  },
+  "categories": [
+    "Other"
+  ],
+  "activationEvents": [
+    "onStartupFinished"
+  ],
+  "main": "./out/extension.js",
+  "contributes": {
+    "commands": [
+      {
+        "command": "jarvis.reconnect",
+        "title": "Jarvis: Reconnect to orchestrator"
+      }
+    ],
+    "configuration": {
+      "title": "Jarvis",
+      "properties": {
+        "jarvis.orchestratorUrl": {
+          "type": "string",
+          "default": "ws://127.0.0.1:7777",
+          "description": "WebSocket URL of the Jarvis orchestrator."
+        },
+        "jarvis.typeIntervalMs": {
+          "type": "number",
+          "default": 24,
+          "description": "Editor flush interval in ms — how often queued tokens are typed in. Lower is snappier."
+        },
+        "jarvis.sharedSecret": {
+          "type": "string",
+          "default": "",
+          "description": "Shared secret authorising the editor connection. Leave blank to read the token the orchestrator writes to ~/.jarvis/editor-token."
+        },
+        "jarvis.tokenFile": {
+          "type": "string",
+          "default": "",
+          "description": "Path to the orchestrator's editor token file. Blank = ~/.jarvis/editor-token."
+        }
+      }
+    }
+  },
+  "scripts": {
+    "compile": "tsc -p ./",
+    "watch": "tsc -watch -p ./",
+    "vscode:prepublish": "npm run compile",
+    "package": "npm run compile && vsce package"
+  },
+  "dependencies": {
+    "ws": "^8.18.0"
+  },
+  "devDependencies": {
+    "@types/node": "^20.11.0",
+    "@types/vscode": "^1.85.0",
+    "@types/ws": "^8.5.10",
+    "@vscode/vsce": "^2.24.0",
+    "typescript": "^5.4.0"
+  }
+}

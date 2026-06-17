@@ -4,12 +4,16 @@ import SwiftUI
 struct JarvisApp: App {
     @StateObject private var client: OrchestratorClient
     @StateObject private var voice: VoiceController
+    @StateObject private var providers = ProviderSettings()
     private let hotkey = Hotkey()
 
     init() {
         let c = OrchestratorClient()
         _client = StateObject(wrappedValue: c)
         _voice = StateObject(wrappedValue: VoiceController(client: c))
+        // Play the startup chime at launch. `init()` (not HUDView.onAppear, which
+        // only fires when the menu-bar popover first opens) is the true-launch seam.
+        StartupSound.play()
     }
 
     var body: some Scene {
@@ -17,6 +21,7 @@ struct JarvisApp: App {
             HUDView(client: client, voice: voice)
                 .onAppear {
                     client.connect()
+                    providers.push(to: client)   // apply saved Ollama fallback config
                     hotkey.onTrigger = { [weak voice] in voice?.pushToTalkDown() }
                     hotkey.enable()
                 }
@@ -30,5 +35,11 @@ struct JarvisApp: App {
             RegistryView(client: client)
         }
         .windowResizability(.contentMinSize)
+
+        // Settings — alternate provider (Ollama Cloud) fallback configuration.
+        Window("Jarvis Settings", id: "settings") {
+            SettingsView(client: client, providers: providers)
+        }
+        .windowResizability(.contentSize)
     }
 }

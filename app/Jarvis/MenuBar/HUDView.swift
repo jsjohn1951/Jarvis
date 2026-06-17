@@ -52,6 +52,11 @@ struct HUDView: View {
                     .foregroundStyle(Theme.onSurfaceVariant)
             }
             .buttonStyle(.plain).help("Open Agent Registry")
+            Button { openWindow(id: "settings") } label: {
+                Image(systemName: "gearshape").font(.system(size: 13, weight: .semibold))
+                    .foregroundStyle(Theme.onSurfaceVariant)
+            }
+            .buttonStyle(.plain).help("Settings")
             Button { NSApplication.shared.terminate(nil) } label: {
                 Image(systemName: "power").font(.system(size: 13, weight: .semibold))
                     .foregroundStyle(Theme.onSurfaceVariant)
@@ -89,15 +94,11 @@ struct HUDView: View {
         GlassPanel {
             ScrollView {
                 VStack(alignment: .leading, spacing: 8) {
-                    // Live speech (while listening) or the last sent command.
-                    if voice.isListening && !voice.partial.isEmpty {
-                        Text(voice.partial)
-                            .font(Theme.body).italic().foregroundStyle(Theme.primary)
-                            .frame(maxWidth: .infinity, alignment: .leading)
-                    } else if !client.lastUserText.isEmpty {
-                        Text(client.lastUserText)
-                            .font(Theme.body).foregroundStyle(Theme.onSurfaceVariant)
-                            .frame(maxWidth: .infinity, alignment: .leading)
+                    // While the user speaks, show a live waveform instead of echoing the
+                    // transcribed words — the panel keeps only Jarvis's reply as text.
+                    if voice.isListening {
+                        WaveformView(levels: voice.micLevels)
+                            .frame(maxWidth: .infinity)
                     }
                     Text(client.transcript.isEmpty ? "Awaiting command…" : client.transcript)
                         .font(Theme.body)
