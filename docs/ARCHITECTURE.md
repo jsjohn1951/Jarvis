@@ -46,7 +46,9 @@ The brain. Responsibilities:
 - **Agent registry** — named agents, each a Claude Agent SDK session launched with `ANTHROPIC_BASE_URL=http://127.0.0.1:9090` so it inherits hybrid routing automatically.
 - **Intent dispatcher** — classifies an incoming command and picks an agent. Classification itself runs on **local Qwen** (fast, free). Images force a vision-capable hybrid agent.
 - **Memory + personality** — every prompt's system message is built from `personality/*.md` + retrieved long-term memory + the short-term buffer (see [MEMORY.md](MEMORY.md)). Turns are persisted and curated (2B capture + cloud consolidation).
-- **WebSocket API** — streams `status` / `text` / `tool` / `done` / `error` / `ignored` events; accepts `prompt` (with optional `triage`, `honorific`, `image`, `nowPlaying`), `health`, `agents`, `models`, `swap`.
+- **WebSocket API** — streams `status` / `text` / `tool` / `done` / `error` / `ignored` / `session` / `cancelled` / `project` events; accepts `prompt` (with optional `triage`, `honorific`, `image`, `nowPlaying`), `health`, `agents`, `models`, `swap`, `cancel`, `session_open`/`session_close`.
+- **Conversation sessions** — "Hey Jarvis" opens a persisted [session](../orchestrator/src/session.js); "goodbye" closes it (consolidate + clear). Additive over the short-term buffer (see [AGENTS.md](AGENTS.md#conversation-sessions)).
+- **Tiered models** — user-facing **conversation** runs on Gemma 3 4B (`:8083`); cheap **internal** classification stays on the 2B (`:8081`); tool-using **hybrid** agents route cloud→local via the router. The **PM pipeline** runs local coder tasks + a cloud reviewer (see [AGENTS.md](AGENTS.md#pm-pipeline)).
 
 ### 3. App-side context & audio (`app/`)
 - **Screen** ([ScreenContext.swift](../app/Jarvis/Context/ScreenContext.swift)) — ScreenCaptureKit screenshot → vision agent.
@@ -67,8 +69,8 @@ The brain. Responsibilities:
 ## Concurrency model (18 GB reality)
 
 - **Cloud agents** (Sonnet sessions) can run in parallel — they're remote.
-- **Local agents** (Qwen) **serialize** on the single `llama-server` (`-np 1`). "Many agents" means many *sessions*, but local inference is one-at-a-time.
-- **Specialized local models** are **hot-swapped**, not co-resident — the orchestrator restarts `llama-server` with a different GGUF when an agent needs it (load-time cost, documented in [MODELS.md](MODELS.md)).
+- **Local agents** (Qwen) **serialize** on the single `llama-server` (`-np 1`). "Many agents" means many *sessions*, but local inference is one-at-a-time — **except** the PM pipeline's coder tier, which runs `--parallel 2 -cb` (continuous batching, one model in memory) so a few coder tasks fan out concurrently. Even then, decode is memory-bandwidth bound, so concurrency buys *pipelining* (a local coder ‖ the remote cloud reviewer/PM), not linear speedup.
+- **Specialized local models** are **hot-swapped**, not co-resident — the orchestrator restarts `llama-server` with a different GGUF when an agent needs it (load-time cost, documented in [MODELS.md](MODELS.md)). The dedicated coder model swaps onto `:8080` for a project, then `restore9B()` hands the slot back.
 
 ## Ports
 
@@ -76,7 +78,8 @@ The brain. Responsibilities:
 |------|---------|-------|
 | 8080 | llama.cpp `llama-server` | existing |
 | 9090 | router proxy `proxy.py` | existing |
-| 8081 | llama.cpp 2B "quick" tier | new |
-| 8082 | Kokoro TTS server (natural voice) | new |
+| 8081 | llama.cpp 2B "quick" tier (internal classifiers) | new |
+| 8083 | llama.cpp Gemma 3 4B conversation tier | new |
+| 8082 | Kokoro/Piper TTS server | new |
 | 7777 | Jarvis orchestrator WebSocket | new |
 </content>

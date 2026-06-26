@@ -52,6 +52,33 @@ export async function answersConfidently(text: string): Promise<boolean> {
 }
 
 /**
+ * Is this just social chit-chat / a personal question about Jarvis ("how are you",
+ * "thanks", "good morning") rather than a real task or factual question? Regex covers
+ * the common phrases instantly; the 2B disambiguates only SHORT, unmatched utterances.
+ * Defaults to NO on error so a genuine task is never silently swallowed into a chat
+ * reply. Kept here beside the other intent classifiers; called from handlePrompt.
+ */
+export async function isSmalltalk(text: string): Promise<boolean> {
+  const t = text.toLowerCase().trim().replace(/[!.?,]+$/g, "");
+  // Fast path — unambiguous social phrases.
+  if (/^(how (are|r) (you|ya|u)|how('?s| is) it going|how('?s| has) (it|things|your day)|how (have|'?ve) you been|how you doing|what'?s up|what'?s good|sup|you good|you (doing )?(ok|okay|alright|well))\b/.test(t))
+    return true;
+  if (/^(thanks|thank you|thank u|ty|appreciate it|much appreciated|cheers|nice (work|job|one)|good (job|work|stuff)|well done|you'?re the best|love (it|you|ya))\b/.test(t))
+    return true;
+  // "good morning" (space), "g'morning" (apostrophe), "gmorning" — all greetings.
+  if (/^g(ood)?[\s']*(morning|afternoon|evening|night)\b/.test(t)) return true;
+  if (/^(hi|hello|hey|yo|hiya|howdy|greetings)\b/.test(t) && t.split(/\s+/).length <= 3) return true;
+  // 2B fallback — only for short utterances; long ones are almost never smalltalk.
+  if (t.split(/\s+/).length > 8) return false;
+  const reply = await quickComplete(
+    `Is this message social chit-chat or a personal question about you (the assistant) — like a greeting, thanks, or "how are you" — as opposed to a real task, command, or factual question that needs work or a looked-up answer? Reply ONLY "YES" or "NO".\n\nMessage: ${text}`,
+    'You classify whether a message is social small-talk. Output exactly "YES" or "NO".',
+    4,
+  ).catch(() => "NO");
+  return /\byes\b/i.test(reply);
+}
+
+/**
  * Decide which agent should handle a command.
  *
  * Policy (this is the main judgement call in Jarvis — tune it to taste):
@@ -90,7 +117,7 @@ export async function dispatch(text: string): Promise<{ agent: string; via: stri
   // come BEFORE dev so their phrasing wins over dev's broad imperative match.
   if (/\b(open (youtube|chrome|google|safari|firefox|a video|the weather|a website|a tab)|search (for |youtube|the web)|on youtube|play .* on youtube|weather (in|for|report|forecast|today)|look (it|this) up online)\b/.test(t))
     return { agent: "web", via: "keyword" };
-  if (/\b(in vs ?code|in chrome|in safari|in the (editor|browser|app|window)|click|double-click|scroll (up|down)|switch to|focus (the )?(window|app)|keystroke|the menu|menu bar|select all)\b/.test(t))
+  if (/\b(in vs ?code|in chrome|in safari|in the (editor|browser|app|window)|in (the )?terminal|the terminal|open (a |the )?terminal|click|double-click|scroll (up|down)|switch to|focus (the )?(window|app)|keystroke|the menu|menu bar|select all)\b/.test(t))
     return { agent: "desktop", via: "keyword" };
   if (/\b(edit|fix|refactor|implement|add|write|create|rename|delete|remove|run|build|commit|install|update|change|move|generate|make (a|the)|open the)\b/.test(t))
     return { agent: "dev", via: "keyword" };

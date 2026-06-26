@@ -14,8 +14,8 @@ lsof -i :8080 -sTCP:LISTEN -t 2>/dev/null | xargs kill 2>/dev/null || true
 rm -f /tmp/llama_server.pid
 sleep 1
 
-echo "[swap] loading $MODEL_FILE on :8080"
-MODEL="$MODELS_DIR/$MODEL_FILE" JARVIS_SPEC=off PORT=8080 \
+echo "[swap] loading $MODEL_FILE on :8080${LLAMA_PARALLEL:+ (parallel=$LLAMA_PARALLEL)}"
+MODEL="$MODELS_DIR/$MODEL_FILE" JARVIS_SPEC=off PORT=8080 LLAMA_PARALLEL="${LLAMA_PARALLEL:-1}" \
   "$ROOT/scripts/llama-server-optimized.sh" >/tmp/llama_server.log 2>&1 &
 echo $! >/tmp/llama_server.pid
 

@@ -51,4 +51,18 @@ class FakeWS {
   assert.match(r.error ?? "", /timed out/, "should explain the timeout");
 }
 
+// 5. The terminal action carries the command + cwd and returns captured output.
+{
+  const ws = new FakeWS();
+  const p = runAct(ws as any, { action: "terminal", command: "ls -la", cwd: "/tmp" });
+  const sent = ws.sent[0];
+  assert.equal(sent.action, "terminal", "should carry the terminal action");
+  assert.equal(sent.command, "ls -la", "should carry the command");
+  assert.equal(sent.cwd, "/tmp", "should carry the cwd");
+  resolveAct({ type: "act_result", id: sent.id, ok: true, output: "total 0\n…" });
+  const r = await p;
+  assert.equal(r.ok, true);
+  assert.match(r.output ?? "", /total 0/, "returns the captured terminal output");
+}
+
 console.log("actuation-test: OK");

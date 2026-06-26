@@ -1,10 +1,12 @@
 import Foundation
 import Combine
+import os
 
 /// Coordinates voice: push-to-talk, "Hey Jarvis" wake word, and TTS.
 /// Feeds transcripts into the OrchestratorClient and speaks its replies.
 @MainActor
 final class VoiceController: ObservableObject {
+    static let log = Logger(subsystem: "com.jarvis.voice", category: "controller")
     enum AddressMode: String, CaseIterable, Identifiable {
         case auto, sir, maam, none
         var id: String { rawValue }
@@ -34,6 +36,19 @@ final class VoiceController: ObservableObject {
     private var conversationActive = false    // a turn happened; keep the window open
     private var speakingAck = false           // speaking the instant ack; cloud reply still coming
     private let followUpSeconds: UInt64 = 45  // stay conversational a bit longer
+    // End-of-utterance (endpointing): how long the mic may stay silent before we treat the
+    // utterance as finished. Longer than the old fixed 1.2s so a normal thinking pause no
+    // longer cuts the user off; extended further when the words trail off mid-clause (a
+    // copula/preposition/conjunction/article/number — the user is clearly mid-thought).
+    // End-of-utterance silence window. KEEP THIS ~1.2s. Confirmed by A/B (2026-06-24): a
+    // longer window (the earlier 2–4s adaptive "anti-cutoff" endpointing) makes the on-device
+    // SFSpeechRecognizer finalize with an EMPTY 0-char transcript — the capture session runs
+    // long enough that the recognizer discards its own hypothesis. Both values are equal for
+    // now (no adaptive extension is active); the endpointDelayMs scaffolding below is retained
+    // for a future anti-cutoff attempt, but only raise these in SMALL steps with on-device
+    // testing, watching the logs for `speech done: 0 chars` regressions.
+    private let baseSilenceMs: UInt64 = 1_200
+    private let midClauseSilenceMs: UInt64 = 1_200
     private let wakeWords = ["jarvis"]   // bare name; addressee is judged by the 2B
 
     private let speech = SpeechService()
@@ -221,6 +236,7 @@ final class VoiceController: ObservableObject {
         mode = .off
         silenceTask?.cancel()
         gender.finalize()   // resolve Sir/Ma'am from this utterance's pitch
+        Self.log.info("handleFinal: mode \(String(describing: wasMode), privacy: .public), \(text.count, privacy: .public) chars")
 
         switch wasMode {
         case .pushToTalk:
@@ -238,21 +254,69 @@ final class VoiceController: ObservableObject {
         }
     }
 
-    /// Fires when the mic has been silent for ~1.2s mid-utterance.
+    /// Fires when the mic has been silent long enough to treat the utterance as done.
+    /// The delay adapts to the transcript so far: if the user trailed off mid-clause
+    /// ("…and", "…with", a trailing comma, a filler word) we wait longer before ending,
+    /// so a natural pause to gather a thought doesn't cut them off.
     private func scheduleSilenceEnd() {
         silenceTask?.cancel()
+        let delayMs = endpointDelayMs()
         silenceTask = Task { [weak self] in
-            try? await Task.sleep(nanoseconds: 1_200_000_000)
+            try? await Task.sleep(nanoseconds: delayMs * 1_000_000)
             guard let self, !Task.isCancelled else { return }
             self.speech.stop()   // → handleFinal
         }
     }
 
+    /// Choose the silence window from the current partial transcript. If the utterance so
+    /// far trails off mid-clause, the user is mid-thought — wait longer before ending.
+    private func endpointDelayMs() -> UInt64 {
+        let p = partial.lowercased().trimmingCharacters(in: .whitespacesAndNewlines)
+        guard !p.isEmpty else { return baseSilenceMs }
+        // A comma/colon/dash, or a connective with no sentence-final punctuation ⇒ more is coming.
+        if p.hasSuffix(",") || p.hasSuffix(":") || p.hasSuffix("-") { return midClauseSilenceMs }
+        let last = String(p.split(separator: " ").last ?? "")
+        // A trailing number ("started around 2019", "about 5") — people pause near a figure.
+        if last.range(of: #"^\d[\d,.]*$"#, options: .regularExpression) != nil { return midClauseSilenceMs }
+        // Words that almost never END a spoken sentence — trailing one ⇒ mid-thought.
+        if Self.continuationWords.contains(last) { return midClauseSilenceMs }
+        return baseSilenceMs
+    }
+
+    /// Tokens that signal the speaker isn't done (used by endpointDelayMs).
+    private static let continuationWords: Set<String> = [
+        // articles / determiners / possessives
+        "a", "an", "the", "my", "your", "his", "her", "its", "our", "their",
+        "this", "that", "these", "those", "some", "any", "no", "every",
+        // conjunctions
+        "and", "or", "but", "nor", "so", "yet", "because", "although", "while", "whereas", "plus",
+        // prepositions
+        "to", "of", "for", "with", "in", "on", "at", "by", "from", "as", "into", "onto",
+        "about", "around", "over", "under", "after", "before", "between", "through", "via", "near",
+        // copulas / auxiliaries / modals
+        "is", "am", "are", "was", "were", "be", "been", "being", "has", "have", "had",
+        "do", "does", "did", "will", "would", "can", "could", "should", "may", "might", "must", "shall",
+        // subordinators / relatives / interrogatives left dangling
+        "if", "then", "which", "who", "whom", "whose", "when", "where", "what", "how",
+        // fillers / hedges, plus "called" ("a company called …" expects a name next)
+        "um", "uh", "er", "erm", "like", "well", "i", "called",
+    ]
+
     /// Send a voice command with the resolved honorific, attaching a screenshot
     /// (screen intent) or now-playing track (music intent) when relevant.
     private func dispatchVoice(_ text: String, triage: Bool) {
         let cmd = text.trimmingCharacters(in: .whitespacesAndNewlines)
-        guard !cmd.isEmpty else { if !triage { resumeWakeIfEnabled() }; return }
+        // An empty capture (recognition heard nothing usable) must NEVER strand the app on
+        // "listening": reset the HUD to idle and re-arm wake listening so the user can retry.
+        // Previously the triage path returned without re-arming, leaving the mic off while the
+        // HUD still showed "listening" (and the wake never resumed).
+        guard !cmd.isEmpty else {
+            Self.log.info("dispatchVoice: empty transcript (triage \(triage, privacy: .public)) — re-arming")
+            client.state = .idle
+            resumeWakeIfEnabled()
+            return
+        }
+        Self.log.info("dispatchVoice: sending prompt (triage \(triage, privacy: .public), \(cmd.count, privacy: .public) chars)")
         let h = resolvedHonorific()
         // Screen questions ("look at my screen") AND desktop-control commands ("in
         // VSCode…", "click…") both attach a screenshot so the vision-capable agent

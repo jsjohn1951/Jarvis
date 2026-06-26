@@ -8,6 +8,9 @@ struct HUDView: View {
     @ObservedObject var voice: VoiceController
     /// Set when hosted in the floating panel — shows a close button that hides it.
     var onClose: (() -> Void)? = nil
+    /// Set only on the menu-bar popover instance — reports when the popover opens/closes
+    /// so the floating panel can avoid stacking a second HUD behind an open popover.
+    var onVisibilityChange: ((Bool) -> Void)? = nil
     @State private var input = ""
     @State private var micDown = false
     @StateObject private var piperVoices = PiperVoiceModel()
@@ -33,7 +36,9 @@ struct HUDView: View {
         .onAppear {
             client.requestHealth(); client.requestRegistry(); inputFocused = true
             Task { await piperVoices.refresh() }
+            onVisibilityChange?(true)
         }
+        .onDisappear { onVisibilityChange?(false) }
     }
 
     // MARK: pieces
@@ -59,11 +64,11 @@ struct HUDView: View {
                     .foregroundStyle(Theme.onSurfaceVariant)
             }
             .buttonStyle(.plain).help("Settings")
-            Button { NSApplication.shared.terminate(nil) } label: {
+            Button { client.shutdownBackend { NSApplication.shared.terminate(nil) } } label: {
                 Image(systemName: "power").font(.system(size: 13, weight: .semibold))
                     .foregroundStyle(Theme.onSurfaceVariant)
             }
-            .buttonStyle(.plain).help("Quit Jarvis")
+            .buttonStyle(.plain).help("Power off Jarvis & backend")
             .keyboardShortcut("q", modifiers: .command)
             Circle()
                 .fill(client.connected ? Theme.primary : Theme.alert)

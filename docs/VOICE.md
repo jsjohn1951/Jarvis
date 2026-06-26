@@ -8,10 +8,17 @@ All voice is **on-device** — no cloud STT, no Whisper build, no Python audio d
 - macOS has **no `AVAudioSession`** — we tap `AVAudioEngine` directly and request mic via `AVCaptureDevice.requestAccess(for: .audio)`.
 
 ## Wake word — "Jarvis" (with addressee check)
-- Toggle **WAKE** in the HUD. Continuous on-device recognition listens for the name **"Jarvis"** ([VoiceController.swift](../app/Jarvis/Voice/VoiceController.swift)); on a match it captures the utterance and ends on ~1.2 s of silence.
+- Toggle **WAKE** in the HUD. Continuous on-device recognition listens for the name **"Jarvis"** ([VoiceController.swift](../app/Jarvis/Voice/VoiceController.swift)); on a match it captures the utterance and ends on an **adaptive** silence window (see *Endpointing* below).
 - **Addressee evaluation:** because "Jarvis" also occurs in normal speech, the captured utterance is sent to the local 2B (`isAddressed`, [dispatcher.ts](../orchestrator/src/dispatcher.ts)), which judges whether you're *talking to* Jarvis vs. *about* it. Addressed → it answers (wake word stripped wherever it appears). Not addressed → an `ignored` event, Jarvis stays silent and keeps listening. The check is local + free (~one short 2B call).
   - e.g. *"Jarvis, open the terminal"* → acts · *"I'll ask Jarvis later"* → ignored.
-- Jarvis pauses the mic while it's speaking (TTS) so it doesn't hear itself.
+
+## Endpointing — not getting cut off mid-thought
+- An utterance ends after the mic goes silent for an **adaptive** window (`scheduleSilenceEnd` / `endpointDelayMs` in [VoiceController.swift](../app/Jarvis/Voice/VoiceController.swift)): a base **~1.8 s**, stretched to **~3.2 s** when the transcript so far trails off mid-clause (a trailing connective/filler — "…and", "…with", "…so", "um", or a comma). This stops a natural pause to gather a thought from cutting you off while you explain a task.
+- A hard **max-utterance cap (~30 s)** guarantees the turn still terminates if the mic never goes quiet.
+
+## Barge-in — interrupting Jarvis
+- While Jarvis is speaking, **press push-to-talk to cut in**: TTS playback stops, a `cancel` is sent to the orchestrator (which aborts the in-flight turn/project mid-stream via a threaded `AbortSignal`), and the mic starts capturing your new command. See `interruptSpeech` ([VoiceController.swift](../app/Jarvis/Voice/VoiceController.swift)) and the `cancel`/`cancelled` wire messages.
+- Jarvis still pauses the mic *during* its own TTS so it doesn't transcribe itself (no acoustic echo cancellation), which is why barge-in is push-to-talk rather than open-mic.
 
 ## Follow-up window (no wake word for follow-ups)
 - Toggle **FOLLOW** in the HUD (on by default). After Jarvis replies, it stays conversational for **~30 s** — you can ask follow-ups *without* saying "Hey Jarvis". The HUD shows **● LISTENING** during the window; each thing you say resets the 30 s. When it lapses with no command, it returns to wake-word listening.

@@ -14,8 +14,9 @@ Jarvis is a **native-macOS control surface over an existing local/cloud LLM stac
 | Orchestrator daemon (Node/TS) | 7777 ws | yes (`orchestrator/`) |
 | VS Code "Live Coder" extension (optional) | →:7777 | yes (`editor-extension/`) |
 | TTS server (Piper default / Kokoro) | 8082 | yes (`tts/`) |
-| llama.cpp 2B "quick" tier | 8081 | yes (`scripts/`) |
-| llama.cpp 9B `llama-server` | 8080 | **external** (`~/llama.cpp`) |
+| llama.cpp 2B "quick" tier (internal classifiers) | 8081 | yes (`scripts/`) |
+| llama.cpp Gemma 3 4B "conversation" tier | 8083 | yes (`scripts/`) |
+| llama.cpp 9B `llama-server` (+ hot-swapped coder model) | 8080 | **external** (`~/llama.cpp`) |
 | Router proxy `proxy.py` | 9090 | **external** (`~/.claude/router/`) |
 
 ## The one mental model: routing by model name

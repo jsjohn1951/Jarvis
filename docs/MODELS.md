@@ -54,14 +54,33 @@ Anything larger than the 2B can't co-reside with the 9B under 14.3 GB, so additi
 
 Trade-off: the swap restarts the 9B slot, so it **interrupts in-flight local-subagent work for ~model-load time**, and the router routes local subagent calls to whatever GGUF is currently loaded there. The 2B quick tier (`:8081`) is unaffected.
 
-### Google Gemma 3 4B (selectable)
-`models/pull-models.sh` also pulls **`gemma-3-4b-it-Q4_K_M.gguf`** (~3 GB) into `~/models`. It
-auto-appears in the Registry's *Local Models* list and is hot-swappable via **LOAD** — no
-orchestrator change needed (the router routes any name containing `gguf` to `:8080`). It's a
-fast, capable alternative for chat. **Caveat:** the router's tool-call bridge injects a
-Qwen3-style `<tools>` system prompt and parses `<tool_call>` tags; Gemma (different tokenizer, no
-native Qwen tool format) follows the injected instructions but tool use is **best-effort** — fine
-for conversation, less reliable for multi-step tool agents. Qwen3.5-9B stays the wired auto-fallback.
+### Google Gemma 3 4B — the conversation tier (`:8083`, always-on)
+`models/pull-models.sh` pulls **`gemma-3-4b-it-Q4_K_M.gguf`** (~3 GB). It now serves the
+**default conversation tier** — a dedicated always-on `llama-server` on **`:8083`**
+([scripts/llama-convo.sh](../scripts/llama-convo.sh), started by `start-jarvis.sh`), used for
+**user-facing dialog**: the instant ack, greetings, smalltalk, and local factual answers
+([convo.ts](../orchestrator/src/convo.ts), `config.convoUrl`/`convoModel`). The cheaper 2B
+(`:8081`) stays reserved for **internal** classifiers (dispatch routing, addressee triage, memory
+retrieve/capture, completion self-check) — so the capable-but-slower conversation model never
+blocks the fast routing path. If `:8083` is down, conversation degrades to the 2B. Tool use on
+Gemma is **best-effort** (the router's Qwen3 `<tool_call>` bridge isn't Gemma-native) — fine, since
+conversation doesn't call tools. Memory budget: 2B (~2 GB) + Gemma (~3 GB) always-on, leaving the
+`:8080` slot for the 9B / a hot-swapped specialist.
+
+### Qwen2.5-Coder-7B — the local coder model (`:8080` hot-swap, `-np 2`)
+`models/pull-models.sh` pulls **`qwen2.5-coder-7b-instruct-q4_k_m.gguf`** (~4.7 GB,
+`config.coderModel`). The PM pipeline hot-swaps it onto `:8080` (displacing the 9B) for a coding
+project, served with **continuous batching** (`--parallel 2 -cb`, via `LLAMA_PARALLEL` →
+[llama-server-optimized.sh](../scripts/llama-server-optimized.sh)) so coder tasks fan out
+concurrently against the one model. `ensureCoderLoaded()`/`restore9B()`
+([models.ts](../orchestrator/src/models.ts)) manage the slot; the 9B is restored when the project
+ends. Implementation runs **locally** on this model (sparing the cloud session); PM reasoning and
+review prefer the cloud with a local fallback. See [AGENTS.md](AGENTS.md#pm-pipeline).
+
+### Other specialists (selectable)
+Any other GGUF in `~/models` auto-appears in the Registry's *Local Models* list and is
+hot-swappable via **LOAD** (or `{ "type": "swap", "model": "Foo.gguf" }`). Qwen3.5-9B stays the
+wired auto-fallback for tool-using agents.
 
 ## Resilient fallback chain — Claude → Ollama Cloud → local
 

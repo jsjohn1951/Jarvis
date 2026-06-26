@@ -33,6 +33,15 @@ common=(
   -c "$CTX" --host 127.0.0.1 --port "$PORT"
 )
 
+# Continuous batching: when LLAMA_PARALLEL>1 (the dedicated coder tier) serve that many
+# concurrent requests against the ONE loaded model — the KV cache splits into N slots, so
+# weights load once. Lets the PM pipeline run coder tasks in parallel without N copies of
+# the model in memory. Default 1 (single slot) preserves every other tier's behavior.
+LLAMA_PARALLEL="${LLAMA_PARALLEL:-1}"
+if [[ "$LLAMA_PARALLEL" -gt 1 ]]; then
+  common+=( --parallel "$LLAMA_PARALLEL" -cb )
+fi
+
 case "$SPEC" in
   draft)
     if [[ -f "$DRAFT" ]]; then draft_arg=(-md "$DRAFT"); else

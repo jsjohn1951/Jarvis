@@ -7,6 +7,7 @@ export interface Health {
   llama: boolean; // :8080 (9B, via router)
   router: boolean; // :9090
   quick: boolean; // :8081 (2B)
+  convo: boolean; // :8083 (Gemma 3 4B conversation tier)
 }
 
 async function ok(url: string): Promise<boolean> {
@@ -19,13 +20,14 @@ async function ok(url: string): Promise<boolean> {
 }
 
 export async function checkHealth(): Promise<Health> {
-  const [llama, router, quick] = await Promise.all([
+  const [llama, router, quick, convo] = await Promise.all([
     ok("http://127.0.0.1:8080/health"),
     // The router has no /health; a 404 still means it's listening and answering.
     fetch(config.routerUrl, { signal: AbortSignal.timeout(1500) }).then(() => true).catch(() => false),
     ok("http://127.0.0.1:8081/health"),
+    ok("http://127.0.0.1:8083/health"),
   ]);
-  return { llama, router, quick };
+  return { llama, router, quick, convo };
 }
 
 /**

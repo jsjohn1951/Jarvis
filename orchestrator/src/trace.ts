@@ -14,7 +14,7 @@ export interface TraceEmit {
   (msg:
     | { type: "agent_spawn"; id: string; name: string; parent?: string; tier: string; role: string }
     | { type: "agent_thought"; id: string; text: string }
-    | { type: "agent_tool"; id: string; name: string }
+    | { type: "agent_tool"; id: string; name: string; detail?: string }
     | { type: "agent_done"; id: string; ok: boolean }): void;
 }
 
@@ -22,8 +22,9 @@ export interface TraceNode {
   id: string;
   /** Stream a chunk of the node's current "thinking" to the graph (throttled). */
   thought(text: string): void;
-  /** Record a tool the node invoked. */
-  tool(name: string): void;
+  /** Record a tool the node invoked, with an optional argument summary
+   *  (skill name, file path, bash command, subagent type…). */
+  tool(name: string, detail?: string): void;
   /** Mark the node finished. */
   done(ok?: boolean): void;
 }
@@ -50,7 +51,7 @@ export function makeTrace(emit: TraceEmit) {
         buf += text;
         if (!timer) timer = setTimeout(flush, 80);
       },
-      tool(name: string) { emit({ type: "agent_tool", id, name }); },
+      tool(name: string, detail?: string) { emit({ type: "agent_tool", id, name, detail }); },
       done(ok = true) { flush(); emit({ type: "agent_done", id, ok }); },
     };
   }

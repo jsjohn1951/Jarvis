@@ -1,11 +1,16 @@
 import { config } from "./config.js";
 
 /**
- * Stream a completion from the local 2B 'quick' tier (OpenAI-compatible, :8081).
- * Yields text deltas. Thinking is disabled (Qwen3 puts the answer in
- * reasoning_content otherwise — same quirk the router handles).
+ * Stream a completion from the local 'conversation' tier — Gemma 3 4B, served
+ * OpenAI-compatible on :8083 (see scripts/llama-convo.sh). This is the USER-FACING
+ * dialog model (greetings, smalltalk, the instant ack, local factual answers); the
+ * cheaper 2B 'quick' tier (quick.ts) stays reserved for internal classifiers.
+ *
+ * Unlike Qwen3 (quick.ts), Gemma has no reasoning_content split and no
+ * enable_thinking toggle — its answer is always in delta.content — so this client is
+ * a touch simpler and runs a slightly warmer temperature for more natural dialog.
  */
-export async function* quickStream(
+export async function* convoStream(
   prompt: string,
   system?: string,
   history: { role: "user" | "assistant"; content: string }[] = [],
@@ -17,20 +22,19 @@ export async function* quickStream(
     ...history,
     { role: "user", content: prompt },
   ];
-  const res = await fetch(`${config.quickUrl}/chat/completions`, {
+  const res = await fetch(`${config.convoUrl}/chat/completions`, {
     method: "POST",
     headers: { "content-type": "application/json" },
-    signal,   // barge-in: aborting stops the 2B generating, not just the read loop
+    signal,   // barge-in: aborting stops Gemma generating, not just the read loop
     body: JSON.stringify({
-      model: config.quickModel,
+      model: config.convoModel,
       messages,
       stream: true,
-      temperature: 0.3,
+      temperature: 0.6,
       max_tokens: maxTokens,
-      chat_template_kwargs: { enable_thinking: false },
     }),
   });
-  if (!res.ok || !res.body) throw new Error(`quick tier ${res.status}`);
+  if (!res.ok || !res.body) throw new Error(`convo tier ${res.status}`);
 
   const reader = res.body.getReader();
   const decoder = new TextDecoder();
@@ -47,8 +51,7 @@ export async function* quickStream(
       if (data === "[DONE]") return;
       try {
         const json = JSON.parse(data);
-        const delta = json.choices?.[0]?.delta;
-        const text = delta?.content ?? delta?.reasoning_content;
+        const text = json.choices?.[0]?.delta?.content;
         if (text) yield text;
       } catch {
         /* partial SSE frame; ignore */
@@ -57,9 +60,9 @@ export async function* quickStream(
   }
 }
 
-/** Non-streaming convenience used by the dispatcher. */
-export async function quickComplete(prompt: string, system?: string, maxTokens = 256): Promise<string> {
+/** Non-streaming convenience (mirrors quickComplete). */
+export async function convoComplete(prompt: string, system?: string, maxTokens = 256): Promise<string> {
   let out = "";
-  for await (const t of quickStream(prompt, system, [], maxTokens)) out += t;
+  for await (const t of convoStream(prompt, system, [], maxTokens)) out += t;
   return out.trim();
 }

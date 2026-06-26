@@ -9,7 +9,8 @@ import { runAct } from "./actuation.js";
  * Rebuilt per request so the handlers close over the requesting connection.
  *
  * Exposed tool ids (use these in an agent's `allowedTools`):
- *   mcp__jarvis__open_target, mcp__jarvis__run_applescript, mcp__jarvis__capture_screen
+ *   mcp__jarvis__open_target, mcp__jarvis__run_applescript, mcp__jarvis__capture_screen,
+ *   mcp__jarvis__run_terminal
  */
 export function buildJarvisTools(ws: WebSocket): McpServerConfig {
   const text = (s: string) => ({ content: [{ type: "text" as const, text: s }] });
@@ -37,6 +38,21 @@ export function buildJarvisTools(ws: WebSocket): McpServerConfig {
         async ({ script }) => {
           const r = await runAct(ws, { action: "applescript", script });
           return text(r.ok ? (r.output ?? "ok") : `error: ${r.error ?? "applescript failed"}`);
+        },
+      ),
+      tool(
+        "run_terminal",
+        "Run a shell command in the user's REAL Terminal.app — it appears and runs in a visible Terminal window, and the captured output (stdout+stderr) is returned. Use this for ALL shell commands the user asks you to run, instead of the headless Bash tool, so they can see it happen. Provide the command (and optionally a working directory).",
+        {
+          command: z.string().describe("The shell command to run, e.g. 'npm test' or 'ls -la'."),
+          cwd: z.string().optional().describe("Working directory to cd into first (absolute path)."),
+        },
+        async ({ command, cwd }) => {
+          // Longer timeout than UI actions: a command may take a while. The app reports
+          // back partial output + 'still running' if it exceeds its own window.
+          const r = await runAct(ws, { action: "terminal", command, cwd }, 180_000);
+          if (r.ok) return text(r.output && r.output.length ? r.output : "(command finished with no output)");
+          return text(`error: ${r.error ?? "terminal command failed"}${r.output ? "\n" + r.output : ""}`);
         },
       ),
       tool(

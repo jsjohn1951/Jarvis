@@ -23,13 +23,14 @@ export const AGENTS: Record<string, AgentDef> = {
     description:
       "Real software work in the current repo: write/edit code, run commands, debug, refactor, explain the codebase.",
     tier: "hybrid",
-    allowedTools: ["Read", "Edit", "Write", "Bash", "Glob", "Grep", "Task"],
+    allowedTools: ["Read", "Edit", "Write", "Glob", "Grep", "Task", "mcp__jarvis__run_terminal"],
     systemPrompt:
       "You are Jarvis's dev agent operating inside the user's repository. " +
       "Division of labor: YOU (the cloud model) do the thinking — understand the request, inspect the " +
-      "code, and decide the approach. Delegate the concrete implementation (edits, mechanical changes, " +
-      "running commands) to local subagents via the Task tool (use the `local-code` and `local-explore` " +
-      "subagents, which run for free on the local model) rather than doing all the typing yourself. " +
+      "code, and decide the approach. Delegate concrete EDITS (mechanical changes, file writes) to local " +
+      "subagents via the Task tool (the `local-code` and `local-explore` subagents run for free on the " +
+      "local model). To RUN shell commands, use the `run_terminal` tool — it runs them in the user's REAL, " +
+      "visible Terminal window and returns the output. Do NOT use a headless Bash tool for commands. " +
       "Keep each delegated step small and well-specified. Be concise; the user hears your summary spoken " +
       "aloud, so lead with the outcome in one or two sentences.",
     cwd: config.repoDir,
@@ -89,11 +90,14 @@ export const AGENTS: Record<string, AgentDef> = {
       "Control on-screen macOS apps the user is looking at: edit code in the open editor (e.g. VSCode), click buttons, type, use menus. Can see the screen.",
     tier: "hybrid",
     allowedTools: [
-      "Read", "Edit", "Write", "Bash", "Glob", "Grep",
+      "Read", "Edit", "Write", "Glob", "Grep",
       "mcp__jarvis__run_applescript", "mcp__jarvis__open_target", "mcp__jarvis__capture_screen",
+      "mcp__jarvis__run_terminal",
     ],
     systemPrompt:
       "You are Jarvis's desktop agent. A screenshot of the user's screen is attached — look before acting. " +
+      "To run shell commands, use the `run_terminal` tool — it runs them in the user's REAL, visible Terminal " +
+      "window and returns the output (do NOT use a headless Bash tool). " +
       "For code changes, prefer editing files on disk with Read/Edit/Write (the open editor reflects them live). " +
       "For genuine UI actions you cannot do via files — clicking, menus, typing into non-file apps, switching windows — " +
       'use run_applescript with AppleScript "System Events" (e.g. tell application "System Events" to keystroke "..."). ' +
@@ -148,6 +152,21 @@ export function greetingPrompt(now: Date = new Date()): string {
     "The user addressed you by name with no further request. " +
     `It is currently ${partOfDay(now)} (local time). ` +
     "Respond with one short, in-character greeting that fits the time of day, offering help."
+  );
+}
+
+/** Used when the user is making social conversation (smalltalk / a personal question
+ *  about you) rather than giving a task. Jarvis answers naturally and briefly IN
+ *  CHARACTER — it must NOT claim it's "working on" anything, offer to start/dispatch a
+ *  task, or ask the user to wait. The `quick` agent's systemPrompt already enforces the
+ *  in-character / 1–3 sentence / no-markdown voice, so this only reframes the intent. */
+export function chatPrompt(text: string): string {
+  return (
+    "The user is making conversation, not giving you a task to execute. " +
+    `They said: "${text}". ` +
+    "Reply naturally and briefly in character — answer the social remark or question directly " +
+    '(how you\'re doing, a thanks, a greeting). Do NOT say you\'re "working on" anything, ' +
+    "do NOT offer to start or dispatch a task, and do NOT ask them to wait."
   );
 }
 

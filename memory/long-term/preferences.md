@@ -7,20 +7,12 @@ How the user likes things done. One fact per line.
 - Prefers assistant tone to be composed, precise, and quietly witty — not sycophantic.
 - Values assistant loyalty and discretion.
 - Prefers monochrome/black-and-white aesthetic for AI assistant UI panels.
-- Prefers creating test directories on the Desktop.
-- Prefers chocolate over ice cream.
 - Identifies Iron Man as preferred superhero.
 - Interested in terminal-based code execution skills for persistent, long-term automation setup.
 - Prefers using the terminal-dev skill with Python (openpyxl) to generate formatted Excel files rather than other methods.
 - Prefers Chrome as the default browser.
 - Prefers that apps or browsers not be opened unless explicitly instructed.
-- Prefers trance music genre.
 - Prefers to specify song title or artist before playing music.
-- Favourite artist includes Armin van Buuren (e.g. 'This Is What It Feels Like').
-- Prefers hearty, root vegetable-based meals.
-- Selects wine pairings based on the specific dish being prepared.
-- Prefers Sauvignon Blanc, particularly from cooler South African regions.
-- Favourite wine producers include Cape Cellars and Mandela Wine.
 - Prefers local Python-based solution for generating images.
 - Prefers VS Code as their development environment.
 - Prefers to open/create files in the current VS Code window rather than a new one.
@@ -31,5 +23,17 @@ How the user likes things done. One fact per line.
 - Identifies as an AI tool user rather than an AI system developer.
 - Interested in AI bias mitigation and prompt engineering techniques.
 - Prefers Spotify over YouTube for music playback.
-- Prefers the assistant to pronounce URLs rather than read them out verbatim.
-- Prefers video content over text descriptions when both are available.
+- Prefers the assistant to not pronounce URLs at all.
+- Prefers concise, fact-based weather updates with specific temperature and humidity data.
+- Prefers high-reasoning orchestration tasks to be routed to cloud APIs and repetitive subagent code loops to be handled by local backends.
+- Prefers local subagents to communicate via structured JSON formatting or strict grammar constraints to prevent syntax hallucinations.
+- Prefers that the assistant proactively mutate or shorten prompt instructions when falling back to smaller local models.
+- Prefers strong static typing, explicit error handling, and comprehensive unit test skeletons included natively in all code generation.
+- Prefers chunked repository indexing or embedding-based RAG over injecting full multi-file codebases into local model context windows.
+- Prefers script creation to follow defensive programming practices, prioritizing atomic file writes and lock file verification.
+- Prefers terminal automation tools to implement robust POSIX signal traps (SIGINT, SIGTERM) to prevent background process or PID leaks.
+- Prefers terminal execution scripts to verify binary and port availability via lightweight native tools (lsof, pgreg) before booting runtimes.
+- Prefers background local inference services to aggressively release memory or adjust keep-alive windows when idle to protect system VRAM.
+- Prefers command-line tool execution to use explicit argument flags and absolute path structures rather than relying on global aliases.- Expects the assistant to avoid the phrase 'give me a moment' when asked to stop.
+- Prefers to avoid small talk during conversations.
+- Prefers a lightweight container approach over dedicated environments for managing local AI models.

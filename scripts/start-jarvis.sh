@@ -1,14 +1,28 @@
 #!/usr/bin/env bash
-# Bring up the full Jarvis stack, then leave the orchestrator in the foreground.
+# Bring up the full Jarvis stack. The orchestrator runs as a background daemon, so
+# this script returns your terminal once everything is up (stop it with the ⏻ button
+# in the HUD or scripts/stop-jarvis.sh).
 #   1. hybrid backend  : llama 9B (:8080) + router (:9090)   [shared with claude-hybrid]
 #   2. quick tier      : llama 2B (:8081)                     [fast local answers]
-#   3. orchestrator    : WebSocket (:7777)                    [the brain]
+#   3. orchestrator    : WebSocket (:7777)                    [the brain, daemonized]
 # Then launch Jarvis.app (menu bar) yourself, or it auto-connects if already open.
+#
+# Flags:
+#   --logs   capture orchestrator output to /tmp/jarvis_orchestrator.log
+#            (default: suppressed — the daemon writes to /dev/null)
 #
 # Auth note: hybrid agents use your Claude Pro subscription via the router — make
 # sure you're logged in (`claude` → /login) and ANTHROPIC_API_KEY is NOT set.
 set -euo pipefail
 ROOT="$(cd "$(dirname "${BASH_SOURCE[0]}")/.." && pwd)"
+
+LOGS=0
+for arg in "$@"; do
+  case "$arg" in
+    --logs) LOGS=1 ;;
+    *) echo "unknown flag: $arg (supported: --logs)" >&2; exit 2 ;;
+  esac
+done
 
 echo "[1/3] hybrid backend (9B + router)…"
 bash "$ROOT/scripts/hybrid-up.sh"
@@ -20,6 +34,19 @@ if ! lsof -i :8081 -sTCP:LISTEN -t >/dev/null 2>&1; then
   echo "      ready"
 else
   echo "      already running"
+fi
+
+echo "[2b/4] conversation tier (Gemma 3 4B :8083)…"
+if [[ -f "$HOME/models/gemma-3-4b-it-Q4_K_M.gguf" ]]; then
+  if ! lsof -i :8083 -sTCP:LISTEN -t >/dev/null 2>&1; then
+    PORT=8083 "$ROOT/scripts/llama-convo.sh" >/tmp/jarvis_convo.log 2>&1 &
+    until curl -sf http://127.0.0.1:8083/health >/dev/null 2>&1; do sleep 1; done
+    echo "      ready"
+  else
+    echo "      already running"
+  fi
+else
+  echo "      skipped — gemma-3-4b-it-Q4_K_M.gguf not in ~/models (conversation falls back to the 2B). Run models/pull-models.sh"
 fi
 
 # TTS engine is selectable: piper (default, en_GB-alan) or kokoro (bm_george).
@@ -58,6 +85,17 @@ else
   echo "[app] not built — run: cd app && xcodegen generate && xcodebuild -scheme Jarvis build"
 fi
 
-echo "[4/4] orchestrator (:7777) — Ctrl-C to stop"
+echo "[4/4] orchestrator (:7777) — starting as daemon"
 cd "$ROOT/orchestrator"
-exec npm start
+LOG_DEST=/dev/null
+[[ "$LOGS" == 1 ]] && LOG_DEST=/tmp/jarvis_orchestrator.log
+nohup npm start >"$LOG_DEST" 2>&1 &
+echo $! > /tmp/jarvis_orchestrator.pid
+until lsof -i :7777 -sTCP:LISTEN -t >/dev/null 2>&1; do sleep 1; done
+echo "      ready — orchestrator running in background (pid $(cat /tmp/jarvis_orchestrator.pid))"
+if [[ "$LOGS" == 1 ]]; then
+  echo "      logs → /tmp/jarvis_orchestrator.log"
+else
+  echo "      logs suppressed (re-run with --logs to capture)"
+fi
+echo "[done] stop with the ⏻ button in the HUD or scripts/stop-jarvis.sh"

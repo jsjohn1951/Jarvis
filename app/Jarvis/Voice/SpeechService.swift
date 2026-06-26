@@ -1,6 +1,7 @@
 import Foundation
 import AVFoundation
 import Speech
+import os
 
 /// On-device speech-to-text via AVAudioEngine + SFSpeechRecognizer.
 ///
@@ -17,6 +18,7 @@ final class SpeechService: @unchecked Sendable {
 
     private(set) var isRunning = false      // mutated only on the main thread
     private var lastText = ""
+    static let log = Logger(subsystem: "com.jarvis.voice", category: "speech")
 
     var onPartial: (@MainActor (String) -> Void)?
     var onFinal: (@MainActor (String) -> Void)?
@@ -53,14 +55,20 @@ final class SpeechService: @unchecked Sendable {
 
         // resultHandler is invoked on a background queue — hop to main before
         // touching state or callbacks.
+        Self.log.info("listening started")
         task = recognizer.recognitionTask(with: req) { [weak self] result, error in
             guard let self else { return }
             let text = result?.bestTranscription.formattedString
-            let done = (result?.isFinal ?? false) || error != nil
+            let isFinal = result?.isFinal ?? false
+            let errDesc = error?.localizedDescription
+            let done = isFinal || error != nil
             DispatchQueue.main.async {
                 MainActor.assumeIsolated {
                     if let text { self.lastText = text; self.onPartial?(text) }
-                    if done { self.cleanup(emitFinal: true) }
+                    if done {
+                        Self.log.info("speech done: \(self.lastText.count, privacy: .public) chars, isFinal=\(isFinal, privacy: .public), err=\(errDesc ?? "none", privacy: .public)")
+                        self.cleanup(emitFinal: true)
+                    }
                 }
             }
         }

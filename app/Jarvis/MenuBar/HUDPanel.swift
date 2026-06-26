@@ -43,6 +43,11 @@ final class HUDPanelController: ObservableObject {
     private var hideWork: DispatchWorkItem?
     private var bag = Set<AnyCancellable>()
 
+    /// True while the menu-bar popover (the manually-opened HUD) is on screen. When it is,
+    /// revealing the floating panel would stack a second, identical HUD behind it — so we
+    /// suppress the reveal and let the already-open popover serve as the visible HUD.
+    var popoverOpen = false
+
     init(client: OrchestratorClient, voice: VoiceController) {
         self.client = client
         self.voice = voice
@@ -59,10 +64,16 @@ final class HUDPanelController: ObservableObject {
     }
 
     func reveal() {
+        // The user already has a HUD up (the menu-bar popover) — don't stack a second one
+        // behind it. The open popover is the visual acknowledgment of being addressed.
+        if popoverOpen { return }
         cancelIdleHide()
         let panel = ensurePanel()
         position(panel)
         if !panel.isVisible {
+            // Sound the chime as the HUD opens on being addressed — same cue as launch.
+            // Only on the hidden→visible transition, so a re-reveal mid-turn won't re-chime.
+            StartupSound.play()
             panel.alphaValue = 0
             panel.orderFrontRegardless()
             NSAnimationContext.runAnimationGroup { ctx in

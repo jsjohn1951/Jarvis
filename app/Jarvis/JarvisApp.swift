@@ -23,7 +23,10 @@ struct JarvisApp: App {
 
     var body: some Scene {
         MenuBarExtra {
-            HUDView(client: client, voice: voice)
+            // Report popover open/close to the panel controller so the wake word doesn't
+            // reveal a second floating HUD behind this one while it's already showing.
+            HUDView(client: client, voice: voice,
+                    onVisibilityChange: { [panel] open in panel.popoverOpen = open })
                 .onAppear {
                     client.connect()
                     providers.push(to: client)   // apply saved Ollama fallback config

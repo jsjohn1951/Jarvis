@@ -60,8 +60,14 @@ The launcher warns if a different engine already holds `:8082`. The system `pyth
 ## Whole stack
 
 ```bash
-./scripts/start-jarvis.sh   # external 9B+router, 2B quick, TTS, orchestrator, opens the app
-./scripts/stop-jarvis.sh
+./scripts/start-jarvis.sh          # external 9B+router, 2B quick, TTS, orchestrator (daemon), opens the app
+./scripts/start-jarvis.sh --logs   # same, but capture orchestrator output to /tmp/jarvis_orchestrator.log
+./scripts/stop-jarvis.sh           # stop everything, including the shared hybrid 9B+router
+./scripts/stop-backend.sh          # stop only Jarvis-owned services (orchestrator, 2B, TTS); leave hybrid up
 ```
+
+The orchestrator now runs as a **background daemon** (PID in `/tmp/jarvis_orchestrator.pid`), so the
+launcher returns your terminal. Logs are suppressed unless you pass `--logs`. Stop it from the HUD with
+the ⏻ button (powers off the Jarvis-owned backend) or with the scripts above.
 
 Full install / dependencies: [../README.md](../README.md).

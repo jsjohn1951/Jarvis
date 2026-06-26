@@ -19,10 +19,12 @@ export interface ActResult {
 }
 
 export interface ActRequest {
-  action: "open" | "applescript" | "capture";
+  action: "open" | "applescript" | "capture" | "terminal";
   app?: string;
   url?: string;
   script?: string;
+  command?: string;   // terminal: the shell command to run visibly in Terminal.app
+  cwd?: string;       // terminal: working directory
 }
 
 type Pending = { resolve: (r: ActResult) => void; timer: ReturnType<typeof setTimeout> };

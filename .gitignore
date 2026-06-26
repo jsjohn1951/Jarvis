@@ -27,6 +27,9 @@ app/DerivedData/
 # Memory — volatile short-term buffer + captured screenshots (long-term + personality are kept)
 memory/short-term/*.md
 memory/screenshots/
+# Runtime conversation sessions + PM project state (per-run artifacts, not source)
+memory/sessions/
+memory/projects/
 
 # macOS
 .DS_Store
