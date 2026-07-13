@@ -59,6 +59,20 @@ host / ports / token / model URL + sha256. Then Settings → *Download* the mode
   profiles, TestFlight, and the increased-memory entitlement (only needed if you
   ever want a model bigger than ~4B Q4).
 
+## Updating the app on the phone
+
+The standard update procedure — after any code change, and for the 7-day re-sign:
+
+1. Connect the iPhone to the Mac via **cable** (verify: `xcrun devicectl list devices`).
+2. `./scripts/ios-package.sh --team <TEAMID>` — builds against the concrete device,
+   signs, and installs over the cable in one step. No Xcode UI, **no simulator**.
+3. That's it: the app's data (downloaded model, settings) survives, and the phone
+   needs no re-pairing — the QR the script prints is only for first-time setup.
+
+The script builds against the *connected device* rather than a generic destination
+on purpose (free-account device registration; see comment in the script). If it
+reports no iPhone found, check the cable and that the phone is unlocked/trusted.
+
 ## Model delivery
 
 Default GGUF: `gemma-3-4b-it-Q4_K_M.gguf` — byte-identical to the Mac's convo tier
@@ -81,12 +95,13 @@ loopback + empty token, so the desktop app is unchanged. iOS-only code lives in
 
 - Orchestrator: `test/mobile-auth-test.ts`, `test/act-routing-test.ts`,
   `test/server-mobile-test.ts` (framework-less tsx; run via `./node_modules/.bin/tsx`).
-- iOS compile check without a device: `xcodebuild -project Jarvis.xcodeproj -target
-  JarvisMobile -sdk iphonesimulator<ver> CODE_SIGNING_ALLOWED=NO build`.
-- Simulator shares the Mac's network — connected mode works against
-  `ws://127.0.0.1:7777` with the mobile token in Settings (the server treats
-  loopback hellos exactly like remote ones). llama.cpp in the simulator is
-  CPU-only; smoke the engine with a tiny GGUF, never the 4B.
+- iOS verification: **prefer the real device** — cable the phone and run
+  `./scripts/ios-package.sh --team <TEAMID>` (build + install is the compile check;
+  see "Updating the app on the phone"). The simulator is deliberately not part of
+  the workflow.
+- Fallback compile check only when no device is reachable (CI, remote session):
+  `xcodebuild -project Jarvis.xcodeproj -target JarvisMobile -sdk
+  iphonesimulator<ver> CODE_SIGNING_ALLOWED=NO build` — build only, don't run it.
 - Real-device checklist: mic/STT permission → prompt → streamed text → Piper audio
   over tailnet; barge-in; Wi-Fi→cellular reconnect (MagicDNS host); airplane-mode
   local chat in persona; "research X" off-Mac; "open Chrome" with the Mac app
