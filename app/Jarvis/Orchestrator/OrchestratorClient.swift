@@ -60,6 +60,8 @@ final class OrchestratorClient: ObservableObject {
     @Published var models: [String] = []     // available GGUFs
     @Published var currentModel = ""         // GGUF loaded on :8080
     @Published var sessionActive = false     // a "Hey Jarvis" conversation session is open
+    @Published var phoneConnected = false    // a mobile client is connected to the orchestrator
+    @Published var phoneDevice = ""          // its self-reported device name (may be empty)
 
     /// Cap so a long session can't grow the log unbounded.
     private let logCap = 500
@@ -202,6 +204,7 @@ final class OrchestratorClient: ObservableObject {
 
     private func reconnect() {
         connected = false
+        phoneConnected = false   // a dead socket can't know the phone's state
         state = .idle
         let delay = reconnectDelay
         reconnectDelay = min(reconnectDelay * 2, 15_000_000_000)  // cap 15s
@@ -339,6 +342,15 @@ final class OrchestratorClient: ObservableObject {
         case "hello_ok":
             // The orchestrator accepted our mobile token (remote clients only).
             log(.info, "mobile role authenticated")
+        case "phone":
+            let was = phoneConnected
+            phoneConnected = obj["connected"] as? Bool ?? false
+            phoneDevice = obj["device"] as? String ?? ""
+            if phoneConnected != was {
+                log(.info, phoneConnected
+                    ? "phone connected" + (phoneDevice.isEmpty ? "" : " (\(phoneDevice))")
+                    : "phone disconnected")
+            }
         case "act":
             // The orchestrator's desktop/web agent is asking the app to perform a
             // system action (open app/URL, run AppleScript, capture screen). Execute

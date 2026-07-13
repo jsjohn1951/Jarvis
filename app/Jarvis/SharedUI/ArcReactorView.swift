@@ -1,18 +1,40 @@
 import SwiftUI
 
+extension Color {
+    init(hex: UInt32) {
+        self.init(
+            .sRGB,
+            red: Double((hex >> 16) & 0xFF) / 255,
+            green: Double((hex >> 8) & 0xFF) / 255,
+            blue: Double(hex & 0xFF) / 255,
+            opacity: 1
+        )
+    }
+}
+
 /// The signature Iron-Man "arc reactor" — a circular indicator whose colour and
 /// animation reflect the HUD state. Pure SwiftUI shapes + glow, no assets.
+/// Compiled into BOTH targets (Theme.swift is macOS-only, so the Obsidian palette
+/// values are inlined here as defaults instead of referenced).
 struct ArcReactorView: View {
     let state: HUDState
+    /// Live mic level 0…1; modulates the core's scale and glow while listening.
+    var level: Float = 0
+    var tintPrimary: Color = Color(hex: 0x00F2FF)   // Theme.primary (Arc Cyan)
+    var tintAlert: Color = Color(hex: 0xFFB4AA)     // Theme.alert
+    var iconColor: Color = Color(hex: 0x05070A)     // Theme.base
     @State private var spin = false
     @State private var breathe = false
 
-    private var tint: Color { state == .alert ? Theme.alert : Theme.primary }
+    private var tint: Color { state == .alert ? tintAlert : tintPrimary }
+    private var levelBoost: CGFloat {
+        state == .listening ? CGFloat(min(max(level, 0), 1)) : 0
+    }
 
     var body: some View {
         ZStack {
             // Outer glow
-            Circle().fill(tint).opacity(glowOpacity).blur(radius: 18)
+            Circle().fill(tint).opacity(glowOpacity + Double(levelBoost) * 0.35).blur(radius: 18)
                 .frame(width: 78, height: 78)
 
             // Static outer ring
@@ -27,16 +49,17 @@ struct ArcReactorView: View {
                 .rotationEffect(.degrees(spin ? 360 : 0))
                 .animation(spinAnim, value: spin)
 
-            // Core
+            // Core — slow breathe plus a fast voice-reactive boost layered on top.
             Circle().fill(tint.opacity(coreOpacity))
                 .frame(width: 26, height: 26)
-                .scaleEffect(breathe ? 1.12 : 0.9)
+                .scaleEffect((breathe ? 1.12 : 0.9) + levelBoost * 0.30)
                 .animation(breatheAnim, value: breathe)
+                .animation(.easeOut(duration: 0.1), value: levelBoost)
                 .shadow(color: tint.opacity(0.8), radius: 10)
 
             Image(systemName: icon)
                 .font(.system(size: 12, weight: .bold))
-                .foregroundStyle(Theme.base)
+                .foregroundStyle(iconColor)
         }
         .frame(width: 84, height: 84)
         .onAppear { spin = true; breathe = true }

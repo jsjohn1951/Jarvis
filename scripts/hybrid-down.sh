@@ -1,8 +1,12 @@
 #!/usr/bin/env bash
 # Stop services started by hybrid-up.sh. Only kills what we started (by PID file).
+#   --router-only   stop just the router proxy, leave llama.cpp up
 set -uo pipefail
 
-for svc in claude_router llama_server; do
+svcs=(claude_router llama_server)
+[[ "${1:-}" == "--router-only" ]] && svcs=(claude_router)
+
+for svc in "${svcs[@]}"; do
   pidfile="/tmp/${svc}.pid"
   if [[ -f "$pidfile" ]]; then
     pid="$(cat "$pidfile" 2>/dev/null || true)"

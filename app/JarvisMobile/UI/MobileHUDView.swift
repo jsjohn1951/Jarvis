@@ -13,6 +13,7 @@ struct MobileHUDView: View {
                 statusHeader
                 transcript
                 Spacer(minLength: 0)
+                ArcReactorView(state: reactorState, level: voice.micLevel)
                 micButton
                 inputBar
             }
@@ -26,6 +27,13 @@ struct MobileHUDView: View {
             }
             .sheet(isPresented: $showSettings) { SettingsView() }
         }
+    }
+
+    /// Local voice activity wins over the (possibly stale) orchestrator state.
+    private var reactorState: HUDState {
+        if voice.listening { return .listening }
+        if voice.speaking { return .speaking }
+        return client.connected ? client.state : .idle
     }
 
     private var stateColor: Color {

@@ -90,15 +90,18 @@ if [[ -n "$DEVICE_ID" ]]; then
   [[ -n "$UDID" ]] && DEST=(-destination "platform=iOS,id=$UDID")
 fi
 
+# ${arr[@]+…} guard: an empty array under `set -u` is "unbound" on macOS bash 3.2.
 xcodebuild -project Jarvis.xcodeproj -scheme JarvisMobile -configuration Debug \
   "${DEST[@]}" -derivedDataPath DerivedData \
   -allowProvisioningUpdates -allowProvisioningDeviceRegistration \
-  "${TEAM_ARGS[@]}" build
+  ${TEAM_ARGS[@]+"${TEAM_ARGS[@]}"} build
 APP_PATH="$ROOT/app/DerivedData/Build/Products/Debug-iphoneos/JarvisMobile.app"
 
 if [[ "$SKIP_INSTALL" == 0 ]]; then
   if [[ -n "$DEVICE_ID" ]]; then
-    echo "      installing on $DEVICE_ID…"
+    # ${…} braces: macOS bash 3.2 parses a bare $VAR followed by a multibyte char
+    # (the ellipsis) as one variable name → "unbound variable" under set -u.
+    echo "      installing on ${DEVICE_ID}…"
     xcrun devicectl device install app --device "$DEVICE_ID" "$APP_PATH"
   else
     echo "      ⚠️  no iPhone connected (USB/Wi-Fi) — skipping install."

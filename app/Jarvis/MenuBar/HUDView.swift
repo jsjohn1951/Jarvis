@@ -14,6 +14,14 @@ struct HUDView: View {
     @State private var input = ""
     @State private var micDown = false
     @StateObject private var piperVoices = PiperVoiceModel()
+    @StateObject private var services = ServiceController()
+    @State private var confirmStop: StopTarget? = nil
+
+    /// Stop actions that need a "shared with claude-hybrid" confirmation first.
+    enum StopTarget: String, Identifiable {
+        case stack, proxy
+        var id: String { rawValue }
+    }
     @FocusState private var inputFocused: Bool
     @Environment(\.openWindow) private var openWindow
 
@@ -24,6 +32,7 @@ struct HUDView: View {
             stateLine
             transcriptPanel
             healthRow
+            servicesRow
             voiceRow
             settingsRow
             voicePickerRow
@@ -36,9 +45,31 @@ struct HUDView: View {
         .onAppear {
             client.requestHealth(); client.requestRegistry(); inputFocused = true
             Task { await piperVoices.refresh() }
+            refreshServices()
             onVisibilityChange?(true)
         }
         .onDisappear { onVisibilityChange?(false) }
+        .onChange(of: client.connected) { refreshServices() }
+        .onChange(of: client.health.router) { refreshServices() }
+        .confirmationDialog(
+            confirmStop == .stack ? "Stop the whole Jarvis stack?" : "Stop the router proxy?",
+            isPresented: Binding(get: { confirmStop != nil }, set: { if !$0 { confirmStop = nil } }),
+            titleVisibility: .visible
+        ) {
+            Button(confirmStop == .stack ? "Stop Stack" : "Stop Proxy", role: .destructive) {
+                let target = confirmStop
+                confirmStop = nil
+                Task {
+                    if target == .stack { await services.stopStack() }
+                    else { await services.stopProxy() }
+                }
+            }
+            Button("Cancel", role: .cancel) { confirmStop = nil }
+        } message: {
+            Text(confirmStop == .stack
+                ? "This also stops the shared 9B llama server and the :9090 router proxy — any active claude-hybrid Claude Code session loses them, not just Jarvis."
+                : "The router proxy on :9090 is shared with your claude-hybrid Claude Code stack — stopping it breaks any active claude-hybrid session, not just Jarvis.")
+        }
     }
 
     // MARK: pieces
@@ -70,6 +101,13 @@ struct HUDView: View {
             }
             .buttonStyle(.plain).help("Power off Jarvis & backend")
             .keyboardShortcut("q", modifiers: .command)
+            Image(systemName: "iphone")
+                .font(.system(size: 12, weight: .semibold))
+                .foregroundStyle(client.phoneConnected ? Theme.primary : Theme.outline)
+                .shadow(color: client.phoneConnected ? Theme.primary.opacity(0.8) : .clear, radius: 4)
+                .help(client.phoneConnected
+                    ? "iPhone connected" + (client.phoneDevice.isEmpty ? "" : " — \(client.phoneDevice)")
+                    : "No phone connected")
             Circle()
                 .fill(client.connected ? Theme.primary : Theme.alert)
                 .frame(width: 7, height: 7)
@@ -137,6 +175,35 @@ struct HUDView: View {
             healthChip("quick", client.health.quick)
             Spacer()
         }
+    }
+
+    // Start/stop the backend from the HUD. STACK is everything (start-jarvis.sh /
+    // stop-jarvis.sh --keep-app); ORCH and PROXY are individual. Stops that touch
+    // the shared claude-hybrid router go through the confirmation dialog.
+    private var servicesRow: some View {
+        HStack(spacing: 10) {
+            toggle("STACK", on: services.stackUp) {
+                if services.stackUp { confirmStop = .stack }
+                else { Task { await services.startStack(); client.requestHealth() } }
+            }
+            toggle("ORCH", on: services.orchestratorUp) {
+                Task {
+                    if services.orchestratorUp { await services.stopOrchestrator() }
+                    else { await services.startOrchestrator() }
+                }
+            }
+            toggle("PROXY", on: services.proxyUp) {
+                if services.proxyUp { confirmStop = .proxy }
+                else { Task { await services.startProxy(); client.requestHealth() } }
+            }
+            if services.busy != nil { ProgressView().controlSize(.small) }
+            Spacer()
+        }
+        .disabled(services.busy != nil)
+    }
+
+    private func refreshServices() {
+        Task { await services.refresh(connected: client.connected, routerHealthy: client.health.router) }
     }
 
     private func healthChip(_ label: String, _ ok: Bool) -> some View {

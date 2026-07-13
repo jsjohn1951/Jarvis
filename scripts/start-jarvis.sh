@@ -93,12 +93,9 @@ if [[ -n "${JARVIS_WS_HOST:-}" && "${JARVIS_WS_HOST}" != "127.0.0.1" ]]; then
 fi
 
 echo "[4/4] orchestrator (:7777) — starting as daemon"
-cd "$ROOT/orchestrator"
 LOG_DEST=/dev/null
 [[ "$LOGS" == 1 ]] && LOG_DEST=/tmp/jarvis_orchestrator.log
-nohup npm start >"$LOG_DEST" 2>&1 &
-echo $! > /tmp/jarvis_orchestrator.pid
-until lsof -i :7777 -sTCP:LISTEN -t >/dev/null 2>&1; do sleep 1; done
+JARVIS_ORCH_LOG="$LOG_DEST" bash "$ROOT/scripts/orchestrator-up.sh"
 echo "      ready — orchestrator running in background (pid $(cat /tmp/jarvis_orchestrator.pid))"
 if [[ "$LOGS" == 1 ]]; then
   echo "      logs → /tmp/jarvis_orchestrator.log"

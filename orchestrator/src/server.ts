@@ -58,7 +58,10 @@ type Outbound =
   | { type: "agent_tool"; id: string; name: string }
   | { type: "agent_done"; id: string; ok: boolean }
   // Remote (mobile) client authenticated successfully — sent before the welcome burst.
-  | { type: "hello_ok"; role: "mobile" };
+  | { type: "hello_ok"; role: "mobile" }
+  // A phone (mobile role) connected or disconnected — pushed to desktop clients and
+  // included in every welcome burst so a late-connecting Mac gets the current state.
+  | { type: "phone"; connected: boolean; device?: string };
 
 const send = (ws: WebSocket, msg: Outbound) => ws.readyState === ws.OPEN && ws.send(JSON.stringify(msg));
 
@@ -134,6 +137,30 @@ function actuatorFor(ws: WebSocket): WebSocket | undefined {
     if (role === "desktop" && sock.readyState === sock.OPEN) return sock;
   }
   return undefined;
+}
+
+/** Device name from each mobile socket's hello, for the Mac HUD's phone chip. */
+const mobileDevices = new Map<WebSocket, string>();
+
+/** Current phone status, recomputed from the live socket set (count-based, so
+ *  reconnects and multiple phones are correct by construction). */
+function phoneStatus(): Outbound {
+  let connected = false;
+  let device: string | undefined;
+  for (const [sock, role] of clientRole) {
+    if (role === "mobile" && sock.readyState === sock.OPEN) {
+      connected = true;
+      device = mobileDevices.get(sock) ?? device;
+    }
+  }
+  return device !== undefined ? { type: "phone", connected, device } : { type: "phone", connected };
+}
+
+/** Push a message to every connected desktop client (the Mac app). */
+function broadcastToDesktop(msg: Outbound) {
+  for (const [sock, role] of clientRole) {
+    if (role === "desktop") send(sock, msg);  // send() already checks OPEN
+  }
 }
 
 /** One-sentence in-character "working on it" line, spoken immediately while the
@@ -864,6 +891,7 @@ export function startServer() {
     checkHealth().then((h) => send(ws, { type: "health", ...h }));
     sendAgents(ws);
     sendModels(ws);
+    send(ws, phoneStatus());
   };
 
   wss.on("connection", (ws, req) => {
@@ -880,11 +908,14 @@ export function startServer() {
       ws.once("close", () => clearTimeout(deadline));
     }
     ws.on("close", () => {
+      const wasMobile = clientRole.get(ws) === "mobile";
       clientRole.delete(ws);            // forget the socket's role
+      mobileDevices.delete(ws);
       pendingPlans.delete(ws);          // drop any unanswered plan gate
       activeTurns.get(ws)?.abort();     // abort any in-flight turn
       activeTurns.delete(ws);
       session.dropSession(ws);          // forget the in-memory session (its file persists)
+      if (wasMobile) broadcastToDesktop(phoneStatus());  // false only when the last phone left
     });
 
     ws.on("message", async (raw) => {
@@ -913,8 +944,10 @@ export function startServer() {
             // (simulator) may also send this — they just re-tag themselves mobile.
             if (mobileAuth.verifyToken(msg.token)) {
               clientRole.set(ws, "mobile");
+              if (typeof msg.device === "string" && msg.device) mobileDevices.set(ws, msg.device);
               send(ws, { type: "hello_ok", role: "mobile" });
               welcome(ws);
+              broadcastToDesktop(phoneStatus());
               console.log(`[jarvis] mobile client connected${typeof msg.device === "string" ? ` (${msg.device})` : ""}`);
             } else { console.warn("[jarvis] mobile hello rejected (bad token)"); ws.close(4001, "bad token"); }
           }

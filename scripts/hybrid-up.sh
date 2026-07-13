@@ -2,9 +2,12 @@
 # Bring up the hybrid backend Jarvis depends on: llama.cpp (:8080) + router (:9090).
 # Idempotent — if a service is already listening, it's left alone. This mirrors the
 # claude-hybrid zsh function so the orchestrator and the shell share one source of truth.
+#   --router-only   start just the router proxy (used by the HUD's PROXY toggle)
 set -euo pipefail
 
 SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
+ROUTER_ONLY=0
+[[ "${1:-}" == "--router-only" ]] && ROUTER_ONLY=1
 LLAMA_PORT="${LLAMA_PORT:-8080}"
 ROUTER_PORT="${ROUTER_PORT:-9090}"
 LLAMA_LOG="${LLAMA_LOG:-/tmp/llama_server.log}"
@@ -14,7 +17,9 @@ ROUTER_PID_FILE="/tmp/claude_router.pid"
 listening() { lsof -i ":$1" -sTCP:LISTEN -t >/dev/null 2>&1; }
 
 # ── llama.cpp (optimized: speculative decoding) ───────────────────────────────
-if ! listening "$LLAMA_PORT"; then
+if [[ "$ROUTER_ONLY" == 1 ]]; then
+  echo "[hybrid-up] --router-only: skipping llama.cpp"
+elif ! listening "$LLAMA_PORT"; then
   echo "[hybrid-up] starting llama.cpp on :$LLAMA_PORT (optimized)"
   PORT="$LLAMA_PORT" "$SCRIPT_DIR/llama-server-optimized.sh" >"$LLAMA_LOG" 2>&1 &
   echo $! >"$LLAMA_PID_FILE"
