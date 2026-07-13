@@ -85,6 +85,13 @@ else
   echo "[app] not built — run: cd app && xcodegen generate && xcodebuild -scheme Jarvis build"
 fi
 
+# Mobile exposure (set by scripts/ios-package.sh): JARVIS_WS_HOST / PIPER_HOST /
+# KOKORO_HOST / PIPER_TOKEN simply inherit into the TTS server and orchestrator
+# daemons launched below — nothing to plumb, just surface it.
+if [[ -n "${JARVIS_WS_HOST:-}" && "${JARVIS_WS_HOST}" != "127.0.0.1" ]]; then
+  echo "[mobile] orchestrator binding ${JARVIS_WS_HOST} — remote clients must present ~/.jarvis/mobile-token"
+fi
+
 echo "[4/4] orchestrator (:7777) — starting as daemon"
 cd "$ROOT/orchestrator"
 LOG_DEST=/dev/null

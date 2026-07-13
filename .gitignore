@@ -21,8 +21,13 @@ orchestrator/dist/
 # Swift / Xcode
 app/Jarvis.xcodeproj/
 app/.build/
+app/build/
 app/DerivedData/
 *.xcuserstate
+
+# iOS on-device model tier — llama.cpp clone + built XCFramework (rebuild with
+# scripts/build-llama-xcframework.sh)
+app/Vendor/
 
 # Memory — volatile short-term buffer + captured screenshots (long-term + personality are kept)
 memory/short-term/*.md

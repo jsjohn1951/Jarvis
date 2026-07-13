@@ -12,7 +12,7 @@ final class KokoroTTSService: NSObject, AVAudioPlayerDelegate {
     private var queue: [String] = []
     private var rawForFallback = ""
     private var speaking = false
-    private let url = URL(string: "http://127.0.0.1:8082/v1/audio/speech")!
+    private var url: URL { Endpoints.ttsBaseURL.appending(path: "v1/audio/speech") }
 
     var onSpeakingChange: ((Bool) -> Void)?   // pauses the mic during playback
     var onUnavailable: ((String) -> Void)?    // → caller speaks via AVSpeechSynthesizer
@@ -61,6 +61,7 @@ final class KokoroTTSService: NSObject, AVAudioPlayerDelegate {
         req.httpMethod = "POST"
         req.timeoutInterval = 30
         req.setValue("application/json", forHTTPHeaderField: "content-type")
+        if !Endpoints.mobileToken.isEmpty { req.setValue(Endpoints.mobileToken, forHTTPHeaderField: "X-Jarvis-Token") }
         let voiceId = UserDefaults.standard.string(forKey: "piperVoice") ?? PiperVoiceModel.defaultId
         req.httpBody = try JSONSerialization.data(withJSONObject: ["input": text, "voice": voiceId])
         let (data, resp) = try await URLSession.shared.data(for: req)

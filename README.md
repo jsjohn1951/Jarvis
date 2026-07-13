@@ -12,6 +12,7 @@ You ──voice/text──► Jarvis.app ──ws:7777──► Orchestrator ─
 - **Jarvis.app** — menu-bar SwiftUI app. Wake word "Jarvis" (with addressee check), follow-up conversation, push-to-talk, text box, screen capture, music dimming, Sir/Ma'am detection.
 - **Orchestrator** — Node/TS daemon (Claude Agent SDK) that routes commands to agents, retains conversation context, and curates long-term memory.
 - **Local models** — 9B (`:8080`) for hard work, 2B "quick" tier (`:8081`) for instant answers, Kokoro voice (`:8082`).
+- **JarvisMobile.app (iOS)** — hybrid companion for iPhone: full Jarvis (voice, agents, live agent panel) when your Mac is reachable over LAN/Tailscale, and an on-device Gemma 3 4B (same GGUF as the Mac's conversation tier) for chat + a local research skill when it isn't. One-command packaging from the laptop: `./scripts/ios-package.sh`. See [docs/IOS.md](docs/IOS.md).
 
 ---
 

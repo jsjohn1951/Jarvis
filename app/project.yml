@@ -3,16 +3,13 @@ options:
   bundleIdPrefix: com.jarvis
   deploymentTarget:
     macOS: "26.0"
+    iOS: "26.0"
   createIntermediateGroups: true
 settings:
   base:
     SWIFT_VERSION: "6.0"
     MARKETING_VERSION: "0.1.0"
     CURRENT_PROJECT_VERSION: "1"
-    ENABLE_HARDENED_RUNTIME: true
-    # Local dev: ad-hoc sign so it runs without a paid signing identity.
-    CODE_SIGN_IDENTITY: "-"
-    CODE_SIGN_STYLE: Manual
 targets:
   Jarvis:
     type: application
@@ -33,3 +30,66 @@ targets:
         CODE_SIGN_ENTITLEMENTS: Jarvis/Jarvis.entitlements
         GENERATE_INFOPLIST_FILE: false
         ASSETCATALOG_COMPILER_GENERATE_ASSET_SYMBOLS: false
+        ENABLE_HARDENED_RUNTIME: true
+        # Local dev: ad-hoc sign so it runs without a paid signing identity.
+        # (Target-scoped: the iOS target needs Automatic signing instead.)
+        CODE_SIGN_IDENTITY: "-"
+        CODE_SIGN_STYLE: Manual
+    scheme:
+      testTargets: []
+
+  # iOS companion client. Compiles the shared core of Jarvis/ (networking, voice,
+  # TTS) minus the macOS desktop-automation surface, plus the mobile-only code in
+  # JarvisMobile/. See docs/IOS.md.
+  JarvisMobile:
+    type: application
+    platform: iOS
+    sources:
+      - path: Jarvis
+        excludes:
+          - "JarvisApp.swift"          # MenuBarExtra shell
+          - "MenuBar/**"               # NSPanel/NSScreen/NSColor UI
+          - "Theme/**"                 # NSColor styling
+          - "Context/**"               # Actuator/ScreenCaptureKit/Apple Events
+          - "Voice/Hotkey.swift"       # global hotkey (no iOS equivalent)
+          - "Voice/AudioDucker.swift"  # AppleScript volume ducking
+          - "Voice/VoiceController.swift"  # mac voice state machine (hotkey/wake/screen deps)
+          - "Info.plist"
+          - "Jarvis.entitlements"
+      - path: JarvisMobile
+      - path: ../personality
+        buildPhase: resources
+    dependencies:
+      # Built by scripts/build-llama-xcframework.sh (pinned tag, gitignored).
+      - framework: Vendor/llama.xcframework
+        embed: true
+    info:
+      path: JarvisMobile/Info.plist
+      properties:
+        UILaunchScreen: {}
+        UISupportedInterfaceOrientations: [UIInterfaceOrientationPortrait]
+        NSMicrophoneUsageDescription: "Jarvis listens to your voice commands, transcribed on-device."
+        NSSpeechRecognitionUsageDescription: "Jarvis transcribes your spoken commands on-device using Apple's Speech framework."
+        NSCameraUsageDescription: "Scan the pairing QR code from your Mac to connect to Jarvis."
+        NSLocalNetworkUsageDescription: "Connect to the Jarvis orchestrator running on your Mac over the local network."
+        UIBackgroundModes: [audio]
+        # The orchestrator/TTS/model server speak plain ws:// and http:// — over
+        # Tailscale that's already WireGuard-encrypted end-to-end, but iOS ATS
+        # would silently block the cleartext connection without this.
+        NSAppTransportSecurity:
+          NSAllowsArbitraryLoads: true
+    settings:
+      base:
+        # NEVER change: the app's data container (the downloaded 2.5 GB model)
+        # survives free-signing reinstalls only while the bundle id is stable.
+        # (User-scoped because bundle ids are GLOBALLY unique across Apple —
+        # plain com.jarvis.mobile was already taken by another team.)
+        PRODUCT_BUNDLE_IDENTIFIER: com.jsjohn1951.jarvis.mobile
+        GENERATE_INFOPLIST_FILE: false
+        TARGETED_DEVICE_FAMILY: "1"
+        ASSETCATALOG_COMPILER_APPICON_NAME: AppIcon
+        # Personal-team automatic signing; scripts/ios-package.sh injects
+        # DEVELOPMENT_TEAM at build time so no team id is committed.
+        CODE_SIGN_STYLE: Automatic
+    scheme:
+      testTargets: []

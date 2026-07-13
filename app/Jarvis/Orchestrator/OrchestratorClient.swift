@@ -98,14 +98,25 @@ final class OrchestratorClient: ObservableObject {
     var onCancelled: (() -> Void)?
 
     private var task: URLSessionWebSocketTask?
-    private let url = URL(string: "ws://127.0.0.1:7777")!
+    /// Computed per-connection so a Settings change applies on the next reconnect.
+    private var url: URL { Endpoints.orchestratorURL }
     private var reconnectDelay: UInt64 = 1_000_000_000  // 1s, backs off
 
     func connect() {
         task = URLSession.shared.webSocketTask(with: url)
         task?.resume()
-        connected = true
-        reconnectDelay = 1_000_000_000
+        // `connected` flips true on the first inbound frame (see handle) — setting
+        // it here optimistically made the HUD strobe ONLINE/OFFLINE while the
+        // server was unreachable (every retry claimed success for a moment).
+        // Remote clients (the iOS app over LAN/tailnet) must authenticate before the
+        // orchestrator will talk to them; loopback clients skip this (empty token).
+        if !Endpoints.mobileToken.isEmpty {
+            send(json: [
+                "type": "hello", "role": "mobile",
+                "token": Endpoints.mobileToken,
+                "device": ProcessInfo.processInfo.hostName,
+            ])
+        }
         send(json: ["type": "health"])
         requestRegistry()
         receive()
@@ -201,6 +212,9 @@ final class OrchestratorClient: ObservableObject {
         guard let data = str.data(using: .utf8),
               let obj = try? JSONSerialization.jsonObject(with: data) as? [String: Any],
               let type = obj["type"] as? String else { return }
+        // Any inbound frame proves the socket is really up (loopback clients get
+        // the welcome burst immediately; mobile clients get hello_ok first).
+        if !connected { connected = true; reconnectDelay = 1_000_000_000 }
         switch type {
         case "status":
             if let s = obj["state"] as? String { state = HUDState(rawValue: s) ?? .idle }
@@ -322,16 +336,23 @@ final class OrchestratorClient: ObservableObject {
         case "models":
             models = obj["list"] as? [String] ?? []
             currentModel = obj["current"] as? String ?? ""
+        case "hello_ok":
+            // The orchestrator accepted our mobile token (remote clients only).
+            log(.info, "mobile role authenticated")
         case "act":
             // The orchestrator's desktop/web agent is asking the app to perform a
             // system action (open app/URL, run AppleScript, capture screen). Execute
             // it here — the app holds the Automation / Screen Recording grants — and
-            // reply with the matching id so the agent's tool call resolves.
+            // reply with the matching id so the agent's tool call resolves. The server
+            // never sends this to mobile sockets; iOS builds have no Actuator.
+            #if os(macOS)
             handleAct(obj)
+            #endif
         default: break
         }
     }
 
+    #if os(macOS)
     private func handleAct(_ obj: [String: Any]) {
         guard let id = obj["id"] as? String else { return }
         let action = obj["action"] as? String ?? ""
@@ -349,4 +370,5 @@ final class OrchestratorClient: ObservableObject {
             self.send(json: msg)
         }
     }
+    #endif
 }

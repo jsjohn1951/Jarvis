@@ -1,8 +1,6 @@
 import type { WebSocket } from "ws";
-import { randomBytes } from "node:crypto";
-import { mkdirSync, readFileSync, writeFileSync, chmodSync } from "node:fs";
-import { dirname } from "node:path";
 import { config } from "./config.js";
+import { makeTokenStore } from "./tokens.js";
 
 /**
  * Bridge from the orchestrator to the Jarvis VS Code extension.
@@ -31,26 +29,9 @@ const editors = new Set<WebSocket>();
 // ── Editor auth ──────────────────────────────────────────────────────────────
 // The :7777 socket is open to any local process, so the privileged "editor" role is
 // gated by a shared secret persisted 0600 (the extension reads the same file).
-let secret = "";
-
-/** Load the editor token, generating + persisting it 0600 on first run. */
-export function ensureToken(): string {
-  if (secret) return secret;
-  try {
-    const existing = readFileSync(config.editorTokenFile, "utf8").trim();
-    if (existing) return (secret = existing);
-  } catch { /* not created yet */ }
-  secret = randomBytes(24).toString("hex");
-  mkdirSync(dirname(config.editorTokenFile), { recursive: true });
-  writeFileSync(config.editorTokenFile, secret, { mode: 0o600 });
-  try { chmodSync(config.editorTokenFile, 0o600); } catch { /* best effort */ }
-  return secret;
-}
-
-/** True when `token` matches the editor secret. */
-export function verifyToken(token: unknown): boolean {
-  return typeof token === "string" && token.length > 0 && token === ensureToken();
-}
+const store = makeTokenStore(config.editorTokenFile);
+export const ensureToken = store.ensure;
+export const verifyToken = store.verify;
 
 /** Register a socket that introduced itself as `role:"editor"`. */
 export function register(ws: WebSocket): void {

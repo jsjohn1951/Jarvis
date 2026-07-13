@@ -8,8 +8,8 @@ if this server is down, the app falls back to AVSpeechSynthesizer automatically.
 import io
 import os
 import soundfile as sf
-from fastapi import FastAPI
-from fastapi.responses import Response
+from fastapi import FastAPI, Request
+from fastapi.responses import JSONResponse, Response
 from pydantic import BaseModel
 from kokoro_onnx import Kokoro
 
@@ -28,6 +28,18 @@ except Exception as e:  # non-fatal — first real request will just be slightly
     print(f"[jarvis-tts] warmup skipped: {e}", flush=True)
 
 app = FastAPI()
+
+# Optional shared-secret gate for non-loopback binds (KOKORO_HOST=0.0.0.0 for the
+# iOS client) — same contract as piper_server.py: when PIPER_TOKEN is set, every
+# request must carry it in X-Jarvis-Token.
+TOKEN = os.environ.get("PIPER_TOKEN", "")
+
+
+@app.middleware("http")
+async def require_token(request: Request, call_next):
+    if TOKEN and request.headers.get("x-jarvis-token", "") != TOKEN:
+        return JSONResponse({"error": "missing or bad X-Jarvis-Token"}, status_code=401)
+    return await call_next(request)
 
 
 class SpeechReq(BaseModel):
@@ -53,5 +65,8 @@ def speech(req: SpeechReq):
 if __name__ == "__main__":
     import uvicorn
     port = int(os.environ.get("KOKORO_PORT", "8082"))
-    print(f"[jarvis-tts] Kokoro on :{port}  voice={DEFAULT_VOICE} lang={LANG}", flush=True)
-    uvicorn.run(app, host="127.0.0.1", port=port, log_level="warning")
+    # Default loopback-only; KOKORO_HOST=0.0.0.0 exposes it to the iOS client
+    # (pair with PIPER_TOKEN — see scripts/ios-package.sh).
+    host = os.environ.get("KOKORO_HOST", "127.0.0.1")
+    print(f"[jarvis-tts] Kokoro on {host}:{port}  voice={DEFAULT_VOICE} lang={LANG}", flush=True)
+    uvicorn.run(app, host=host, port=port, log_level="warning")

@@ -11,6 +11,7 @@ Jarvis is a **native-macOS control surface over an existing local/cloud LLM stac
 | Process | Port | Owned here? |
 |---------|------|-------------|
 | `Jarvis.app` (SwiftUI menu-bar client) | →:7777 | yes (`app/`) |
+| `JarvisMobile.app` (iOS hybrid client, on-device Gemma fallback) | →:7777/:8082 via LAN/Tailscale | yes (`app/JarvisMobile/`) |
 | Orchestrator daemon (Node/TS) | 7777 ws | yes (`orchestrator/`) |
 | VS Code "Live Coder" extension (optional) | →:7777 | yes (`editor-extension/`) |
 | TTS server (Piper default / Kokoro) | 8082 | yes (`tts/`) |
@@ -56,5 +57,6 @@ If `npx`/`npm` misbehave in this shell, call `./node_modules/.bin/<tool>` direct
 | Memory capture/retrieval/consolidation, personality | [docs/MEMORY.md](docs/MEMORY.md) |
 | Agent registry, tiers, dispatch policy | [docs/AGENTS.md](docs/AGENTS.md) |
 | Live coding into VS Code (coder agent, extension, token stream) | [docs/EDITOR.md](docs/EDITOR.md) |
+| iOS companion: pairing, mobile auth, on-device model, packaging | [docs/IOS.md](docs/IOS.md) |
 | Install / dependencies / first-run permissions | [README.md](README.md) · [docs/SETUP.md](docs/SETUP.md) |
 | Past design specs & implementation plans (dated) | [docs/superpowers/](docs/superpowers/) |

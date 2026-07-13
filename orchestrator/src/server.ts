@@ -20,6 +20,7 @@ import * as session from "./session.js";
 import { runProject, type PmDeps } from "./pm.js";
 import { makeProject, saveProject } from "./project.js";
 import * as vscodeBridge from "./vscode-bridge.js";
+import * as mobileAuth from "./mobile-auth.js";
 import { CodeStreamRouter } from "./code-stream.js";
 import { writeFile, mkdir } from "node:fs/promises";
 import { dirname, join } from "node:path";
@@ -55,7 +56,9 @@ type Outbound =
   | { type: "agent_spawn"; id: string; name: string; parent?: string; tier: string; role: string }
   | { type: "agent_thought"; id: string; text: string }
   | { type: "agent_tool"; id: string; name: string }
-  | { type: "agent_done"; id: string; ok: boolean };
+  | { type: "agent_done"; id: string; ok: boolean }
+  // Remote (mobile) client authenticated successfully — sent before the welcome burst.
+  | { type: "hello_ok"; role: "mobile" };
 
 const send = (ws: WebSocket, msg: Outbound) => ws.readyState === ws.OPEN && ws.send(JSON.stringify(msg));
 
@@ -114,6 +117,24 @@ const pendingPlans = new Map<WebSocket, PendingPlan>();
 
 /** The in-flight turn's abort controller, so a "cancel" message (barge-in) can abort it. */
 const activeTurns = new Map<WebSocket, AbortController>();
+
+/** Role of each authenticated socket. Loopback sockets are trusted as "desktop" at
+ *  connect (the Mac app; also the iOS simulator, which may upgrade itself to
+ *  "mobile" via hello). Non-loopback sockets have NO entry until a valid mobile
+ *  hello — the message handler drops everything else from them. "editor" is the
+ *  VS Code extension (loopback + editor token). */
+const clientRole = new Map<WebSocket, "desktop" | "mobile" | "editor">();
+
+/** The socket that should perform desktop actuation for a prompt from `ws`: the
+ *  requesting desktop app itself, else the first connected desktop app (a prompt
+ *  from the phone drives the Mac), else undefined → graceful tool error. */
+function actuatorFor(ws: WebSocket): WebSocket | undefined {
+  if (clientRole.get(ws) === "desktop" && ws.readyState === ws.OPEN) return ws;
+  for (const [sock, role] of clientRole) {
+    if (role === "desktop" && sock.readyState === sock.OPEN) return sock;
+  }
+  return undefined;
+}
 
 /** One-sentence in-character "working on it" line, spoken immediately while the
  *  cloud works. It must tell the user you're STARTING the task and to give you a
@@ -477,7 +498,7 @@ async function runResolved(
       const sysWithHistory = histText ? `${system}\n\n## Recent conversation\n${histText}` : system;
       // The desktop/web agents drive the app via in-process tools bound to this ws.
       const usesJarvisTools = def.allowedTools?.some((t) => t.startsWith("mcp__jarvis__"));
-      const mcpServers = usesJarvisTools ? { jarvis: buildJarvisTools(ws) } : undefined;
+      const mcpServers = usesJarvisTools ? { jarvis: buildJarvisTools(() => actuatorFor(ws)) } : undefined;
       // Graph node currently producing work — reassigned to a local node on fallback,
       // which is exactly the "cloud planned, local now implementing" handoff.
       let active = work;
@@ -829,7 +850,8 @@ async function startProject(
 
 export function startServer() {
   vscodeBridge.ensureToken(); // create the editor secret file before the extension connects
-  const wss = new WebSocketServer({ host: "127.0.0.1", port: config.wsPort });
+  mobileAuth.ensureToken();   // create the mobile secret file before the phone pairs
+  const wss = new WebSocketServer({ host: config.wsHost, port: config.wsPort });
 
   const sendAgents = (ws: WebSocket) =>
     send(ws, {
@@ -838,12 +860,27 @@ export function startServer() {
     });
   const sendModels = (ws: WebSocket) =>
     send(ws, { type: "models", list: listModels(), current: getCurrentModel() });
-
-  wss.on("connection", (ws) => {
+  const welcome = (ws: WebSocket) => {
     checkHealth().then((h) => send(ws, { type: "health", ...h }));
     sendAgents(ws);
     sendModels(ws);
+  };
+
+  wss.on("connection", (ws, req) => {
+    if (mobileAuth.isLoopback(req.socket.remoteAddress)) {
+      // Same-machine client (Mac app, VS Code extension, iOS simulator): trusted
+      // exactly as before — immediate welcome burst, implicit desktop role.
+      clientRole.set(ws, "desktop");
+      welcome(ws);
+    } else {
+      // Remote socket (only reachable when JARVIS_WS_HOST widens the bind):
+      // quarantined — nothing sent, nothing but a mobile hello honored, and a
+      // 10s deadline to authenticate before the socket is dropped.
+      const deadline = setTimeout(() => { if (!clientRole.has(ws)) ws.close(4001, "auth timeout"); }, 10_000);
+      ws.once("close", () => clearTimeout(deadline));
+    }
     ws.on("close", () => {
+      clientRole.delete(ws);            // forget the socket's role
       pendingPlans.delete(ws);          // drop any unanswered plan gate
       activeTurns.get(ws)?.abort();     // abort any in-flight turn
       activeTurns.delete(ws);
@@ -857,14 +894,29 @@ export function startServer() {
       } catch {
         return send(ws, { type: "error", message: "invalid JSON" });
       }
+      // Unauthenticated remote sockets may only introduce themselves.
+      if (!clientRole.has(ws) && msg.type !== "hello") {
+        return ws.close(4001, "unauthenticated");
+      }
       switch (msg.type) {
         case "hello":
           // The VS Code extension introduces itself so we route the coder stream to
           // it. Gated by the shared secret so an arbitrary local process can't pose as
-          // the editor; a bad/absent token closes the socket.
+          // the editor; a bad/absent token closes the socket. Loopback-only.
           if (msg.role === "editor") {
-            if (vscodeBridge.verifyToken(msg.token)) vscodeBridge.register(ws);
-            else { console.warn("[jarvis] editor hello rejected (bad token)"); ws.close(); }
+            if (clientRole.get(ws) === "desktop" && vscodeBridge.verifyToken(msg.token)) {
+              clientRole.set(ws, "editor");
+              vscodeBridge.register(ws);
+            } else { console.warn("[jarvis] editor hello rejected (bad token or remote)"); ws.close(); }
+          } else if (msg.role === "mobile") {
+            // The iOS client authenticates with the pairing token. Loopback clients
+            // (simulator) may also send this — they just re-tag themselves mobile.
+            if (mobileAuth.verifyToken(msg.token)) {
+              clientRole.set(ws, "mobile");
+              send(ws, { type: "hello_ok", role: "mobile" });
+              welcome(ws);
+              console.log(`[jarvis] mobile client connected${typeof msg.device === "string" ? ` (${msg.device})` : ""}`);
+            } else { console.warn("[jarvis] mobile hello rejected (bad token)"); ws.close(4001, "bad token"); }
           }
           break;
         case "health":
@@ -877,6 +929,9 @@ export function startServer() {
           sendModels(ws);
           break;
         case "swap":
+          // Hot-swapping the :8080 slot stalls any in-flight local work — not a
+          // decision to take from a phone in a pocket.
+          if (clientRole.get(ws) === "mobile") return send(ws, { type: "error", message: "model swap is only available from the Mac app" });
           if (typeof msg.model !== "string") return send(ws, { type: "error", message: "swap: missing model" });
           send(ws, { type: "status", state: "thinking", detail: `loading ${msg.model}` });
           try {
@@ -928,6 +983,8 @@ export function startServer() {
           providers.applyProviderConfig(msg);
           break;
         case "shutdown":
+          // Powering off the Mac stack is a desktop-only privilege.
+          if (clientRole.get(ws) === "mobile") return send(ws, { type: "error", message: "shutdown is only available from the Mac app" });
           // Power-off from the HUD: tear down the Jarvis-owned services (2B :8081,
           // TTS :8082, and this orchestrator on :7777) but leave the shared hybrid
           // 9B + router up for claude-hybrid. The teardown is spawned DETACHED so it
@@ -954,6 +1011,9 @@ export function startServer() {
     });
   }
 
-  console.log(`[jarvis] orchestrator listening on ws://127.0.0.1:${config.wsPort}`);
+  console.log(`[jarvis] orchestrator listening on ws://${config.wsHost}:${config.wsPort}`);
+  if (config.wsHost !== "127.0.0.1") {
+    console.log(`[jarvis] non-loopback bind: remote clients must authenticate with the token in ${config.mobileTokenFile}`);
+  }
   return wss;
 }

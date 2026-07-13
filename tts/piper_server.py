@@ -9,8 +9,8 @@ down, the app falls back to AVSpeechSynthesizer.
 """
 import os
 
-from fastapi import FastAPI
-from fastapi.responses import Response
+from fastapi import FastAPI, Request
+from fastapi.responses import JSONResponse, Response
 from pydantic import BaseModel
 from piper import PiperVoice
 
@@ -34,6 +34,20 @@ except Exception as e:
     print(f"[jarvis-tts] piper warmup skipped: {e}", flush=True)
 
 app = FastAPI()
+
+# Optional shared-secret gate for non-loopback binds (PIPER_HOST=0.0.0.0 for the
+# iOS client): when PIPER_TOKEN is set, every request must carry it in
+# X-Jarvis-Token. Loopback callers on the default bind are unaffected (no token
+# set → no check). The token is the same pairing secret the orchestrator uses
+# (~/.jarvis/mobile-token), exported by scripts/start-jarvis.sh.
+TOKEN = os.environ.get("PIPER_TOKEN", "")
+
+
+@app.middleware("http")
+async def require_token(request: Request, call_next):
+    if TOKEN and request.headers.get("x-jarvis-token", "") != TOKEN:
+        return JSONResponse({"error": "missing or bad X-Jarvis-Token"}, status_code=401)
+    return await call_next(request)
 
 
 class SpeechReq(BaseModel):
@@ -72,5 +86,8 @@ if __name__ == "__main__":
     import uvicorn
 
     port = int(os.environ.get("PIPER_PORT", os.environ.get("KOKORO_PORT", "8082")))
-    print(f"[jarvis-tts] Piper on :{port}", flush=True)
-    uvicorn.run(app, host="127.0.0.1", port=port, log_level="warning")
+    # Default loopback-only; PIPER_HOST=0.0.0.0 exposes it to the iOS client
+    # (pair with PIPER_TOKEN — see scripts/ios-package.sh).
+    host = os.environ.get("PIPER_HOST", "127.0.0.1")
+    print(f"[jarvis-tts] Piper on {host}:{port}", flush=True)
+    uvicorn.run(app, host=host, port=port, log_level="warning")

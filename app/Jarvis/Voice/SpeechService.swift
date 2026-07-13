@@ -38,9 +38,18 @@ final class SpeechService: @unchecked Sendable {
         guard !isRunning, let recognizer, recognizer.isAvailable else { return }
         lastText = ""
 
+        #if os(iOS)
+        // iOS requires an explicit audio session before the engine can capture;
+        // macOS has no AVAudioSession. `.voiceChat` enables echo cancellation so
+        // Jarvis's own TTS doesn't feed back into recognition.
+        let session = AVAudioSession.sharedInstance()
+        try session.setCategory(.playAndRecord, mode: .voiceChat, options: [.defaultToSpeaker, .allowBluetoothHFP])
+        try session.setActive(true, options: .notifyOthersOnDeactivation)
+        #endif
+
         let req = SFSpeechAudioBufferRecognitionRequest()
         req.shouldReportPartialResults = true
-        req.requiresOnDeviceRecognition = true   // fully local — no audio leaves the Mac
+        req.requiresOnDeviceRecognition = true   // fully local — no audio leaves the device
         request = req
 
         let input = engine.inputNode

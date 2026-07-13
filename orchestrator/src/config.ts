@@ -5,6 +5,10 @@ import { join } from "node:path";
 export const config = {
   // WebSocket the SwiftUI app connects to.
   wsPort: Number(process.env.JARVIS_WS_PORT ?? 7777),
+  // Host the WebSocket binds to. Default loopback-only. scripts/ios-package.sh sets
+  // JARVIS_WS_HOST=0.0.0.0 so the iOS client can connect over the tailnet — remote
+  // (non-loopback) sockets must then authenticate with the mobile token.
+  wsHost: process.env.JARVIS_WS_HOST ?? "127.0.0.1",
 
   // Existing hybrid backend (do not change unless the router/llama ports move).
   routerUrl: process.env.JARVIS_ROUTER_URL ?? "http://127.0.0.1:9090",
@@ -67,6 +71,9 @@ export const config = {
   // on first run, persisted 0600, and read by the VS Code extension so a random local
   // process can't register as the editor and receive the coder code stream.
   editorTokenFile: process.env.JARVIS_EDITOR_TOKEN_FILE ?? join(homedir(), ".jarvis", "editor-token"),
+  // Shared secret gating the remote "mobile" role (iOS client). Same pattern as the
+  // editor token; delivered to the phone via the pairing QR from scripts/ios-package.sh.
+  mobileTokenFile: process.env.JARVIS_MOBILE_TOKEN_FILE ?? join(homedir(), ".jarvis", "mobile-token"),
 
   // Where the `dev` agent operates. Defaults to the user's home — set per-project.
   repoDir: process.env.JARVIS_REPO ?? homedir(),

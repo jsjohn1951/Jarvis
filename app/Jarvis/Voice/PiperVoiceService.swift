@@ -21,7 +21,7 @@ final class PiperVoiceModel: ObservableObject {
     @Published var selectedId: String =
         UserDefaults.standard.string(forKey: "piperVoice") ?? PiperVoiceModel.defaultId
 
-    private let base = URL(string: "http://127.0.0.1:8082")!
+    private var base: URL { Endpoints.ttsBaseURL }
 
     private struct Catalog: Decodable { let voices: [Voice] }
     private struct Status: Decodable { let state: String; let error: String? }
@@ -69,16 +69,21 @@ final class PiperVoiceModel: ObservableObject {
         throw URLError(.timedOut)
     }
 
+    private func request(_ path: String, method: String) -> URLRequest {
+        var req = URLRequest(url: base.appending(path: path))
+        req.httpMethod = method
+        if !Endpoints.mobileToken.isEmpty { req.setValue(Endpoints.mobileToken, forHTTPHeaderField: "X-Jarvis-Token") }
+        return req
+    }
+
     private func get<T: Decodable>(_ path: String) async throws -> T {
-        let (data, resp) = try await URLSession.shared.data(from: base.appending(path: path))
+        let (data, resp) = try await URLSession.shared.data(for: request(path, method: "GET"))
         guard (resp as? HTTPURLResponse)?.statusCode == 200 else { throw URLError(.badServerResponse) }
         return try JSONDecoder().decode(T.self, from: data)
     }
 
     private func post(_ path: String) async throws {
-        var req = URLRequest(url: base.appending(path: path))
-        req.httpMethod = "POST"
-        let (_, resp) = try await URLSession.shared.data(for: req)
+        let (_, resp) = try await URLSession.shared.data(for: request(path, method: "POST"))
         guard (resp as? HTTPURLResponse)?.statusCode == 200 else { throw URLError(.badServerResponse) }
     }
 }
