@@ -59,6 +59,8 @@ fi
 
 echo "[2/6] llama.cpp XCFramework…"
 bash "$ROOT/scripts/build-llama-xcframework.sh"
+echo "      sherpa-onnx XCFramework + Piper voice (on-device TTS)…"
+bash "$ROOT/scripts/build-sherpa-tts.sh"
 
 echo "[3/6] pairing token…"
 if [[ ! -s "$TOKEN_FILE" ]]; then
@@ -145,12 +147,13 @@ if [[ "$SERVE_MODEL" == 1 && -f "$MODEL_FILE" ]]; then
 fi
 
 echo "[6/6] stack…"
+# TTS is synthesized on the phone itself now — only the orchestrator WebSocket
+# needs to be reachable from the phone (no PIPER_HOST/PIPER_TOKEN exposure).
 if [[ "$BRING_UP" == 1 ]]; then
-  JARVIS_WS_HOST=0.0.0.0 PIPER_HOST=0.0.0.0 KOKORO_HOST=0.0.0.0 PIPER_TOKEN="$TOKEN" \
-    bash "$ROOT/scripts/start-jarvis.sh"
+  JARVIS_WS_HOST=0.0.0.0 bash "$ROOT/scripts/start-jarvis.sh"
 else
   echo "      to expose the stack to the phone:"
-  echo "      JARVIS_WS_HOST=0.0.0.0 PIPER_HOST=0.0.0.0 PIPER_TOKEN=\$(cat $TOKEN_FILE) ./scripts/start-jarvis.sh"
+  echo "      JARVIS_WS_HOST=0.0.0.0 ./scripts/start-jarvis.sh"
 fi
 
 [[ "$SERVE_MODEL" == 1 && -f "$MODEL_FILE" ]] && wait || true

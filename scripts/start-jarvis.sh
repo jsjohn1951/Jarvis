@@ -50,15 +50,14 @@ else
 fi
 
 # Mobile exposure: once a phone is paired (~/.jarvis/mobile-token exists), a plain
-# start defaults to the same exposure env ios-package.sh --up sets, so the phone
-# can connect no matter how the stack was started (the Mac HUD's ServiceController
-# does the same). Explicit env still wins; no token file → loopback-only, as ever.
+# start widens the orchestrator bind so the phone can connect no matter how the
+# stack was started (the Mac HUD's ServiceController does the same). TTS stays
+# loopback-only — the phone synthesizes its own voice on-device (LocalPiperTTS).
+# Explicit env still wins; no token file → loopback-only, as ever.
 MOBILE_TOKEN_FILE="${JARVIS_MOBILE_TOKEN_FILE:-$HOME/.jarvis/mobile-token}"
 if [[ -z "${JARVIS_WS_HOST:-}" && -s "$MOBILE_TOKEN_FILE" ]]; then
   export JARVIS_WS_HOST=0.0.0.0
-  export PIPER_HOST="${PIPER_HOST:-0.0.0.0}" KOKORO_HOST="${KOKORO_HOST:-0.0.0.0}"
-  export PIPER_TOKEN="${PIPER_TOKEN:-$(cat "$MOBILE_TOKEN_FILE")}"
-  echo "[mobile] phone paired — exposing orchestrator/TTS beyond loopback (token required)"
+  echo "[mobile] phone paired — exposing orchestrator beyond loopback (token required)"
 fi
 
 # TTS engine is selectable: piper (default, en_GB-alan) or kokoro (bm_george).
@@ -97,9 +96,10 @@ else
   echo "[app] not built — run: cd app && xcodegen generate && xcodebuild -scheme Jarvis build"
 fi
 
-# Mobile exposure (set by scripts/ios-package.sh): JARVIS_WS_HOST / PIPER_HOST /
-# KOKORO_HOST / PIPER_TOKEN simply inherit into the TTS server and orchestrator
-# daemons launched below — nothing to plumb, just surface it.
+# Mobile exposure: JARVIS_WS_HOST (auto-set above when a phone is paired, or set
+# explicitly) inherits into the orchestrator daemon launched below — nothing to
+# plumb, just surface it. (PIPER_HOST/PIPER_TOKEN can still be set manually to
+# expose TTS, but the phone no longer needs it — voice is on-device.)
 if [[ -n "${JARVIS_WS_HOST:-}" && "${JARVIS_WS_HOST}" != "127.0.0.1" ]]; then
   echo "[mobile] orchestrator binding ${JARVIS_WS_HOST} — remote clients must present ~/.jarvis/mobile-token"
 fi

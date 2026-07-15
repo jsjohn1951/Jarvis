@@ -3,8 +3,11 @@
 The `JarvisMobile` target ([app/project.yml](../app/project.yml)) is a hybrid iOS client:
 
 - **Connected mode** — the phone is a voice/text surface for the Mac's orchestrator
-  (`ws://<mac>:7777`) and TTS server (`http://<mac>:8082`). Claude Agent SDK, agents,
-  coder, and memory all stay on the Mac; the phone streams text in and Piper audio out.
+  (`ws://<mac>:7777`). Claude Agent SDK, agents, coder, and memory all stay on the
+  Mac; only text crosses the network. **Voice is synthesized on-device** in both
+  modes (Piper `en_US-joe-medium` via sherpa-onnx,
+  [LocalPiperTTS.swift](../app/JarvisMobile/Voice/LocalPiperTTS.swift)) — the phone
+  never calls the Mac's `:8082` TTS server.
 - **Standalone mode** — an embedded llama.cpp runs the *same* Gemma 3 4B GGUF as the
   Mac's :8083 conversation tier for chat, plus a fixed research pipeline
   (search → fetch → extract → summarize). No long-term memory on-device; session-only.
@@ -22,7 +25,10 @@ downloaded, and chat follows the "Prefer local for chat" setting (Mac by default
 
 That script: checks tools (brew-installs Tailscale/qrencode/jq), builds the pinned
 llama.cpp XCFramework ([scripts/build-llama-xcframework.sh](../scripts/build-llama-xcframework.sh)
-→ `app/Vendor/llama.xcframework`, gitignored), ensures the pairing token
+→ `app/Vendor/llama.xcframework`, gitignored), builds the pinned sherpa-onnx
+XCFramework and fetches the bundled Piper voice
+([scripts/build-sherpa-tts.sh](../scripts/build-sherpa-tts.sh) → `app/Vendor/`,
+gitignored; adds ~80 MB of on-device TTS to the app), ensures the pairing token
 (`~/.jarvis/mobile-token`, 0600), xcodebuilds + installs `JarvisMobile.app` on a
 connected iPhone, prints the **pairing QR**, optionally serves the local GGUF on
 `:8090`, and brings the stack up with mobile exposure.
@@ -44,7 +50,14 @@ host / ports / token / model URL + sha256. Then Settings → *Download* the mode
   and a plain `./scripts/start-jarvis.sh` default to the same mobile-exposure env
   automatically, so every way of starting the stack behaves like `ios-package.sh --up`.
   Set `JARVIS_WS_HOST=127.0.0.1` explicitly to force loopback-only despite pairing.
-- TTS: `PIPER_HOST=0.0.0.0` + `PIPER_TOKEN=<token>` requires `X-Jarvis-Token`.
+- TTS needs **no network exposure**: the phone synthesizes speech on-device.
+  (`PIPER_HOST=0.0.0.0` + `PIPER_TOKEN=<token>` can still expose the Mac's server
+  manually — remote requests then require `X-Jarvis-Token` — but no mobile flow
+  needs it anymore.)
+- Licensing note: the on-device engine (sherpa-onnx, Apache-2.0) bundles
+  `espeak-ng-data`, which is GPL-3.0 — same situation as the Mac's separate Piper
+  *process* noted in [tts/README.md](../tts/README.md); fine for this personal,
+  unredistributed build.
 - Desktop actuation (`act`) is never sent to a mobile socket; a phone-originated
   "open Chrome" drives the *Mac* app when it's connected, else the tool returns a
   graceful error ([orchestrator/src/tools.ts](../orchestrator/src/tools.ts)).
@@ -107,8 +120,9 @@ loopback + empty token, so the desktop app is unchanged. iOS-only code lives in
 - Fallback compile check only when no device is reachable (CI, remote session):
   `xcodebuild -project Jarvis.xcodeproj -target JarvisMobile -sdk
   iphonesimulator<ver> CODE_SIGNING_ALLOWED=NO build` — build only, don't run it.
-- Real-device checklist: mic/STT permission → prompt → streamed text → Piper audio
-  over tailnet; barge-in; Wi-Fi→cellular reconnect (MagicDNS host); airplane-mode
-  local chat in persona; "research X" off-Mac; "open Chrome" with the Mac app
+- Real-device checklist: mic/STT permission → prompt → streamed text → on-device
+  Piper voice (Joe) with the Mac's `:8082` *not* exposed; barge-in; Wi-Fi→cellular
+  reconnect (MagicDNS host); airplane-mode
+  local chat in persona **with voice**; "research X" off-Mac; "open Chrome" with the Mac app
   closed → graceful error; agent panel live during a multi-agent turn; re-sign
   after 7 days → model still present.

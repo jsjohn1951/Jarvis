@@ -1,10 +1,17 @@
 import AVFoundation
 
-/// Natural Jarvis voice via the local Kokoro server (:8082).
+/// One sentence of text → playable audio bytes (WAV). Backends: the Mac's Piper
+/// server over HTTP, or fully on-device synthesis (iOS, LocalPiperTTS).
+protocol TTSSynthesizer: Sendable {
+    func synth(_ text: String) async throws -> Data
+}
+
+/// Natural Jarvis voice, synthesized per sentence by the injected backend
+/// (default: the local Piper server on :8082).
 ///
 /// Streams by sentence: it synthesizes + plays the first sentence while the rest
-/// are still being generated, so speech starts fast on long replies. If the server
-/// is unreachable on the first sentence, calls `onUnavailable` so the caller can
+/// are still being generated, so speech starts fast on long replies. If the
+/// backend fails on the first sentence, calls `onUnavailable` so the caller can
 /// fall back to AVSpeechSynthesizer.
 @MainActor
 final class KokoroTTSService: NSObject, AVAudioPlayerDelegate {
@@ -12,7 +19,11 @@ final class KokoroTTSService: NSObject, AVAudioPlayerDelegate {
     private var queue: [String] = []
     private var rawForFallback = ""
     private var speaking = false
-    private var url: URL { Endpoints.ttsBaseURL.appending(path: "v1/audio/speech") }
+    private let synthesizer: TTSSynthesizer
+
+    init(synthesizer: TTSSynthesizer = HTTPPiperSynthesizer()) {
+        self.synthesizer = synthesizer
+    }
 
     var onSpeakingChange: ((Bool) -> Void)?   // pauses the mic during playback
     var onUnavailable: ((String) -> Void)?    // → caller speaks via AVSpeechSynthesizer
@@ -40,7 +51,7 @@ final class KokoroTTSService: NSObject, AVAudioPlayerDelegate {
         }
         let sentence = queue.removeFirst()
         do {
-            let data = try await synth(sentence)
+            let data = try await synthesizer.synth(sentence)
             let p = try AVAudioPlayer(data: data)
             p.delegate = self
             player = p
@@ -54,21 +65,6 @@ final class KokoroTTSService: NSObject, AVAudioPlayerDelegate {
             }
             queue = []
         }
-    }
-
-    private func synth(_ text: String) async throws -> Data {
-        var req = URLRequest(url: url)
-        req.httpMethod = "POST"
-        req.timeoutInterval = 30
-        req.setValue("application/json", forHTTPHeaderField: "content-type")
-        if !Endpoints.mobileToken.isEmpty { req.setValue(Endpoints.mobileToken, forHTTPHeaderField: "X-Jarvis-Token") }
-        let voiceId = UserDefaults.standard.string(forKey: "piperVoice") ?? PiperVoiceModel.defaultId
-        req.httpBody = try JSONSerialization.data(withJSONObject: ["input": text, "voice": voiceId])
-        let (data, resp) = try await URLSession.shared.data(for: req)
-        guard (resp as? HTTPURLResponse)?.statusCode == 200, !data.isEmpty else {
-            throw URLError(.badServerResponse)
-        }
-        return data
     }
 
     nonisolated func audioPlayerDidFinishPlaying(_ p: AVAudioPlayer, successfully flag: Bool) {
@@ -88,5 +84,26 @@ final class KokoroTTSService: NSObject, AVAudioPlayerDelegate {
             }
         }
         return out.isEmpty ? [text] : out
+    }
+}
+
+/// Default backend: the Piper server on :8082 (loopback on the Mac; the phone
+/// used this over LAN/tailnet before TTS moved on-device).
+struct HTTPPiperSynthesizer: TTSSynthesizer {
+    func synth(_ text: String) async throws -> Data {
+        var req = URLRequest(url: Endpoints.ttsBaseURL.appending(path: "v1/audio/speech"))
+        req.httpMethod = "POST"
+        req.timeoutInterval = 30
+        req.setValue("application/json", forHTTPHeaderField: "content-type")
+        if !Endpoints.mobileToken.isEmpty { req.setValue(Endpoints.mobileToken, forHTTPHeaderField: "X-Jarvis-Token") }
+        let voiceId = await MainActor.run {
+            UserDefaults.standard.string(forKey: "piperVoice") ?? PiperVoiceModel.defaultId
+        }
+        req.httpBody = try JSONSerialization.data(withJSONObject: ["input": text, "voice": voiceId])
+        let (data, resp) = try await URLSession.shared.data(for: req)
+        guard (resp as? HTTPURLResponse)?.statusCode == 200, !data.isEmpty else {
+            throw URLError(.badServerResponse)
+        }
+        return data
     }
 }

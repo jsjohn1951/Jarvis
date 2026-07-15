@@ -64,18 +64,17 @@ final class ServiceController: ObservableObject {
     }
 
     /// GUI env + mobile exposure when a phone is paired: mirrors what
-    /// scripts/ios-package.sh --up exports (JARVIS_WS_HOST / PIPER_HOST /
-    /// KOKORO_HOST / PIPER_TOKEN), keyed off the pairing token's existence.
+    /// scripts/ios-package.sh --up exports (JARVIS_WS_HOST), keyed off the
+    /// pairing token's existence. TTS stays loopback-only — the phone
+    /// synthesizes its own voice on-device (LocalPiperTTS).
     private static func serviceEnvironment() -> [String: String] {
         var env = ProcessInfo.processInfo.environment
         let tokenFile = FileManager.default.homeDirectoryForCurrentUser
             .appendingPathComponent(".jarvis/mobile-token")
-        if let token = try? String(contentsOf: tokenFile, encoding: .utf8)
-            .trimmingCharacters(in: .whitespacesAndNewlines), !token.isEmpty {
+        let token = (try? String(contentsOf: tokenFile, encoding: .utf8))?
+            .trimmingCharacters(in: .whitespacesAndNewlines) ?? ""
+        if !token.isEmpty {
             env["JARVIS_WS_HOST"] = "0.0.0.0"
-            env["PIPER_HOST"] = "0.0.0.0"
-            env["KOKORO_HOST"] = "0.0.0.0"
-            env["PIPER_TOKEN"] = token
         }
         return env
     }

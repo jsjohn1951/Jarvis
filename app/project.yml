@@ -57,12 +57,27 @@ targets:
           - "Info.plist"
           - "Jarvis.entitlements"
       - path: JarvisMobile
+      # sherpa-onnx Swift wrapper, vendored from the pinned checkout by
+      # scripts/build-sherpa-tts.sh so it always matches the C headers.
+      - path: Vendor/SherpaOnnxSwift
       - path: ../personality
         buildPhase: resources
+      # On-device Piper voice (.onnx + tokens + espeak-ng-data), fetched by
+      # scripts/build-sherpa-tts.sh. Folder reference: espeak-ng-data must keep
+      # its directory structure inside the bundle.
+      - path: Vendor/vits-piper-en_US-joe-medium
+        buildPhase: resources
+        type: folder
     dependencies:
       # Built by scripts/build-llama-xcframework.sh (pinned tag, gitignored).
       - framework: Vendor/llama.xcframework
         embed: true
+      # Built by scripts/build-sherpa-tts.sh (pinned tag, gitignored). Static
+      # libraries — linked, never embedded.
+      - framework: Vendor/sherpa-onnx.xcframework
+        embed: false
+      - framework: Vendor/onnxruntime.xcframework
+        embed: false
     info:
       path: JarvisMobile/Info.plist
       properties:
@@ -91,5 +106,9 @@ targets:
         # Personal-team automatic signing; scripts/ios-package.sh injects
         # DEVELOPMENT_TEAM at build time so no team id is committed.
         CODE_SIGN_STYLE: Automatic
+        # sherpa-onnx C API → Swift (on-device TTS). Headers are flattened out
+        # of the xcframework by scripts/build-sherpa-tts.sh.
+        SWIFT_OBJC_BRIDGING_HEADER: JarvisMobile/SherpaOnnx-Bridging-Header.h
+        HEADER_SEARCH_PATHS: $(PROJECT_DIR)/Vendor/sherpa-onnx-headers
     scheme:
       testTargets: []

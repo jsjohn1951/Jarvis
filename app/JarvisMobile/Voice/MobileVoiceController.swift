@@ -5,9 +5,9 @@ import Combine
 ///
 /// Deliberately much smaller than the Mac's VoiceController — no global hotkey, no
 /// always-on wake word (iOS restricts background mic), no music ducking, no screen
-/// context. Reuses the shared SpeechService (on-device STT), KokoroTTSService
-/// (Piper audio from the Mac over LAN/tailnet) and TTSService (on-device AVSpeech
-/// when the Mac is unreachable).
+/// context. Reuses the shared SpeechService (on-device STT) and KokoroTTSService
+/// (Piper voice, synthesized ON-DEVICE via LocalPiperTTS — no Mac needed), with
+/// TTSService (AVSpeech) as the fallback if the local engine can't load.
 @MainActor
 final class MobileVoiceController: ObservableObject {
     @Published var listening = false
@@ -37,8 +37,8 @@ final class MobileVoiceController: ObservableObject {
     private let researchSkill = ResearchSkill()
 
     private let speech = SpeechService()
-    private let tts = TTSService()          // on-device fallback voice
-    private let kokoro = KokoroTTSService() // Piper voice streamed from the Mac
+    private let tts = TTSService()          // on-device fallback voice (AVSpeech)
+    private let kokoro = KokoroTTSService(synthesizer: LocalPiperTTS()) // on-device Piper (Joe)
     private let meter = AudioLevelMeter()
     private unowned let client: OrchestratorClient
     private var authorized = false

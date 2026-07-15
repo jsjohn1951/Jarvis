@@ -35,7 +35,9 @@ While you speak, the HUD's transcript panel shows a **live audio waveform** inst
 Two engines, chosen automatically. Text is cleaned first — **code fences, markdown, and emoji stripped**, length capped — so Jarvis narrates, never reading code (or "robot face") aloud. Toggled by **VOICE** in the HUD.
 
 ### Primary — Piper (default neural voice)
-A local [Piper](https://github.com/OHF-Voice/piper1-gpl) server provides the default **British-male** voice **`en_GB-alan`** (Received Pronunciation). The app POSTs the reply to `:8082` and plays the returned WAV ([KokoroTTSService.swift](../app/Jarvis/Voice/KokoroTTSService.swift)) — the same OpenAI-compatible contract, so the app is engine-agnostic. Runs on Apple Silicon. Setup + run: [tts/README.md](../tts/README.md) (started automatically by `start-jarvis.sh`).
+A local [Piper](https://github.com/OHF-Voice/piper1-gpl) server provides the default **British-male** voice **`en_GB-alan`** (Received Pronunciation). The Mac app POSTs the reply to `:8082` and plays the returned WAV ([KokoroTTSService.swift](../app/Jarvis/Voice/KokoroTTSService.swift), `HTTPPiperSynthesizer`) — the same OpenAI-compatible contract, so the app is engine-agnostic. Runs on Apple Silicon. Setup + run: [tts/README.md](../tts/README.md) (started automatically by `start-jarvis.sh`).
+
+**iOS is different:** the phone synthesizes Piper **on-device** — **American-male `en_US-joe-medium`** via a pinned [sherpa-onnx](https://github.com/k2-fsa/sherpa-onnx) build ([LocalPiperTTS.swift](../app/JarvisMobile/Voice/LocalPiperTTS.swift), assets vendored by [scripts/build-sherpa-tts.sh](../scripts/build-sherpa-tts.sh)). Same sentence-pipelined `KokoroTTSService` playback, different backend; the phone never contacts `:8082`, so voice works with the Mac unreachable.
 
 The HUD has a **voice dropdown** (waveform icon, below the settings row): pick any voice from a curated English catalog (British + American, male + female). Voices download on demand into [tts/voices/](../tts/voices/) the first time they're selected (~60 MB each, shown with "⤓" until downloaded) and only the active voice is held in memory. The choice persists across launches; default stays `en_GB-alan`.
 
@@ -43,7 +45,7 @@ The HUD has a **voice dropdown** (waveform icon, below the settings row): pick a
 Set `JARVIS_TTS_ENGINE=kokoro` to use [Kokoro-82M](https://huggingface.co/hexgrad/Kokoro-82M) (Apache-2.0) instead — a natural British-male voice, default **`bm_george`** (alternatives `bm_fable`, `bm_lewis`, `bm_daniel`), via onnxruntime's CoreML provider (~0.75 real-time on M3 Pro). Both engines serve `:8082`; only one runs at a time.
 
 ### Fallback — AVSpeechSynthesizer
-If the TTS server (Piper or Kokoro) is down, the app falls back to `AVSpeechSynthesizer` ([TTSService.swift](../app/Jarvis/Voice/TTSService.swift)). Its chooser (`bestJarvisVoice()`) prefers a British-male voice (picks **Daniel (en-GB)** here). For a less robotic fallback, download an enhanced voice once: **System Settings → Accessibility → Spoken Content → System Voice → Manage Voices → English (UK) → Daniel (Enhanced)** (or Oliver/Arthur/Jamie).
+If the TTS server (Piper or Kokoro) is down — or, on iOS, if the on-device engine fails to load — the app falls back to `AVSpeechSynthesizer` ([TTSService.swift](../app/Jarvis/Voice/TTSService.swift)). Its chooser (`bestJarvisVoice()`) prefers a British-male voice (picks **Daniel (en-GB)** here). For a less robotic fallback, download an enhanced voice once: **System Settings → Accessibility → Spoken Content → System Voice → Manage Voices → English (UK) → Daniel (Enhanced)** (or Oliver/Arthur/Jamie).
 
 > Note: the real J.A.R.V.I.S. voice (Paul Bettany) is a copyrighted performance — not available as open source and not cloned here. The Piper `en_GB-alan` and Kokoro British-male voices are the open, license-respecting alternatives.
 
