@@ -59,6 +59,9 @@ type Outbound =
   | { type: "agent_done"; id: string; ok: boolean }
   // Remote (mobile) client authenticated successfully — sent before the welcome burst.
   | { type: "hello_ok"; role: "mobile" }
+  // A turn started on ANOTHER client — mirrors the prompt into every activity log
+  // (the originating client logs its own prompt locally; see broadcastToClients).
+  | { type: "prompt_echo"; text: string }
   // A phone (mobile role) connected or disconnected — pushed to desktop clients and
   // included in every welcome burst so a late-connecting Mac gets the current state.
   | { type: "phone"; connected: boolean; device?: string };
@@ -163,6 +166,16 @@ function broadcastToDesktop(msg: Outbound) {
   }
 }
 
+/** Push a message to every desktop AND mobile client (never the editor), so the
+ *  agent graph / activity log stay in sync across the Mac HUD and the phone no
+ *  matter which one issued the prompt. Per-turn UX messages (text/done/ack/…)
+ *  stay per-socket — mirroring those would make both devices speak. */
+function broadcastToClients(msg: Outbound, except?: WebSocket) {
+  for (const [sock, role] of clientRole) {
+    if (sock !== except && (role === "desktop" || role === "mobile")) send(sock, msg);
+  }
+}
+
 /** One-sentence in-character "working on it" line, spoken immediately while the
  *  cloud works. It must tell the user you're STARTING the task and to give you a
  *  moment — never a generic greeting ("ready to assist", "how can I help"), since
@@ -204,8 +217,14 @@ async function handlePrompt(
   // reveal the floating HUD. (Cheap, idempotent; the app shows the panel once.)
   if (triage) send(ws, { type: "addressed" });
 
+  // Mirror the prompt to the OTHER clients first, so their logs show what kicked
+  // off the agent activity that follows (the origin logged its prompt locally).
+  broadcastToClients({ type: "prompt_echo", text: rawText }, ws);
+
   // Node-graph trace for this turn: the local "interpret" node fronts every turn.
-  const trace = makeTrace((m) => send(ws, m));
+  // Trace events fan out to every desktop/mobile client — the agent graph is one
+  // shared view of the orchestrator, not a per-device one.
+  const trace = makeTrace((m) => broadcastToClients(m));
   const interp = trace.spawn({ name: "interpret", tier: "local", role: "interpret" });
 
   // "Jarvis, do X" → route on "do X". Bare "Jarvis" → greet.
@@ -296,7 +315,7 @@ async function handlePrompt(
       send(ws, { type: "session", state: "closed", id: s?.id });
     }
     memory.clearShortTerm();
-    send(ws, { type: "agent", name: "quick", via: "command" });
+    broadcastToClients({ type: "agent", name: "quick", via: "command" });
     const ack = closing ? "Alright, we're all wrapped up. Talk to you soon." : "Context cleared. Starting fresh.";
     send(ws, { type: "text", delta: ack });
     send(ws, { type: "done", result: ack });
@@ -364,7 +383,7 @@ async function runResolved(
 ) {
   const { greetingOnly = false, conversational = false, honorific, image, nowPlaying } = opts;
   const { agent, via } = resolved;
-  send(ws, { type: "agent", name: agent, via });
+  broadcastToClients({ type: "agent", name: agent, via });
 
   // Barge-in: register an abort controller for this turn so a "cancel" message can stop it
   // mid-stream. Cleared in the after-loop section (every path breaks there).
@@ -503,7 +522,7 @@ async function runResolved(
       for await (const ev of runHybrid(def, promptText, { system: sysWithHistory, partial: true, signal: turnCtl.signal })) {
         if (ev.type === "text") router.push(ev.delta);
         else if (ev.type === "fallback") {
-          send(ws, { type: "agent", name: agent, via: "local-fallback" });
+          broadcastToClients({ type: "agent", name: agent, via: "local-fallback" });
           active = trace.spawn({ name: "local", tier: "local", role: "fallback", parent: work.id });
         } else if (ev.type === "reset") {
           // Provider failed mid-stream: drop partial narration, un-type the editor, and
@@ -536,7 +555,7 @@ async function runResolved(
           send(ws, { type: "text", delta: ev.delta });
         } else if (ev.type === "fallback") {
           ranLocal = true;
-          send(ws, { type: "agent", name: agent, via: "local-fallback" });
+          broadcastToClients({ type: "agent", name: agent, via: "local-fallback" });
           active = trace.spawn({ name: "local", tier: "local", role: "fallback", parent: work.id });
         } else if (ev.type === "reset") {
           // A provider failed mid-stream; drop the partial answer so the HUD/TTS
@@ -602,7 +621,7 @@ async function runResolved(
   if (verdict.kind === "continue") {
     continuationsUsed++;
     work.tool("continue");
-    send(ws, { type: "agent", name: agent, via: "continue" });
+    broadcastToClients({ type: "agent", name: agent, via: "continue" });
     runPrompt = verdict.remaining;
     continue;   // re-run the agent on the remaining work
   }
@@ -657,7 +676,7 @@ async function runPlanGate(
   honorific?: string,
   nowPlaying?: string,
 ) {
-  send(ws, { type: "agent", name: "planner", via: qa.turns.length ? "qa" : "gate" });
+  broadcastToClients({ type: "agent", name: "planner", via: qa.turns.length ? "qa" : "gate" });
   const node = trace.spawn({ name: "planner", tier: "hybrid", role: "plan", parent: parentId });
 
   const planSystem = await buildSystem(
@@ -683,7 +702,7 @@ async function runPlanGate(
     for await (const ev of runHybrid(AGENTS.planner, userText, { system: sysWithHistory })) {
       if (ev.type === "text") { full += ev.delta; node.thought(ev.delta); send(ws, { type: "text", delta: ev.delta }); }
       else if (ev.type === "tool") { node.tool(ev.name, ev.detail); send(ws, { type: "tool", name: ev.name, detail: ev.detail }); }
-      else if (ev.type === "fallback") send(ws, { type: "agent", name: "planner", via: "local-fallback" });
+      else if (ev.type === "fallback") broadcastToClients({ type: "agent", name: "planner", via: "local-fallback" });
       else if (ev.type === "reset") { full = ""; send(ws, { type: "reset" }); }
       else if (ev.type === "result") full = ev.text || full;
     }
@@ -751,7 +770,7 @@ async function runPlannerTurn(
   userText: string,
   honorific?: string,
 ) {
-  send(ws, { type: "agent", name: "planner", via: qa.turns.length ? "qa" : "gate" });
+  broadcastToClients({ type: "agent", name: "planner", via: qa.turns.length ? "qa" : "gate" });
   const node = trace.spawn({ name: "planner", tier: "hybrid", role: "plan", parent: parentId });
 
   const planSystem = await buildSystem(
@@ -781,7 +800,7 @@ async function runPlannerTurn(
       // so the raw JSON is never read aloud.
       if (ev.type === "text") { full += ev.delta; node.thought(ev.delta); send(ws, { type: "text", delta: ev.delta }); }
       else if (ev.type === "tool") { node.tool(ev.name, ev.detail); send(ws, { type: "tool", name: ev.name, detail: ev.detail }); }
-      else if (ev.type === "fallback") send(ws, { type: "agent", name: "planner", via: "local-fallback" });
+      else if (ev.type === "fallback") broadcastToClients({ type: "agent", name: "planner", via: "local-fallback" });
       else if (ev.type === "reset") { full = ""; send(ws, { type: "reset" }); }
       else if (ev.type === "result") full = ev.text || full;
     }
@@ -840,7 +859,7 @@ async function startProject(
   const project = makeProject(planned.goal, planned.tasks, config.repoDir, session.getSession(ws)?.id);
   await saveProject(project);
   session.attachProject(ws, project.id);
-  send(ws, { type: "agent", name: "pm", via: "project" });
+  broadcastToClients({ type: "agent", name: "pm", via: "project" });
 
   // Register the project run for barge-in/cancel, like a normal turn.
   const ctl = new AbortController();
@@ -850,7 +869,7 @@ async function startProject(
   let acc = "";
   const deps: PmDeps = {
     onText: (d) => { acc += d; node.thought(d); send(ws, { type: "text", delta: d }); },
-    onAgent: (name, via) => send(ws, { type: "agent", name, via }),
+    onAgent: (name, via) => broadcastToClients({ type: "agent", name, via }),
     onProject: (e) => send(ws, { type: "project", ...e }),
     signal: ctl.signal,
   };
@@ -880,6 +899,21 @@ export function startServer() {
   mobileAuth.ensureToken();   // create the mobile secret file before the phone pairs
   const wss = new WebSocketServer({ host: config.wsHost, port: config.wsPort });
 
+  // Liveness reaper: TCP alone leaves half-open sockets (phone changed networks,
+  // app backgrounded) counted as connected for minutes, so the phone chip lies.
+  // Ping every socket each sweep; anything that hasn't ponged since the previous
+  // sweep is terminated, which runs the normal close handler (role cleanup +
+  // phone-status broadcast) — no separate disconnect path to maintain.
+  const alive = new Map<WebSocket, boolean>();
+  const heartbeat = setInterval(() => {
+    for (const ws of wss.clients) {
+      if (alive.get(ws) === false) { ws.terminate(); continue; }
+      alive.set(ws, false);
+      ws.ping();
+    }
+  }, 15_000);
+  wss.on("close", () => clearInterval(heartbeat));
+
   const sendAgents = (ws: WebSocket) =>
     send(ws, {
       type: "agents",
@@ -895,6 +929,9 @@ export function startServer() {
   };
 
   wss.on("connection", (ws, req) => {
+    alive.set(ws, true);
+    ws.on("pong", () => alive.set(ws, true));
+    ws.once("close", () => alive.delete(ws));
     if (mobileAuth.isLoopback(req.socket.remoteAddress)) {
       // Same-machine client (Mac app, VS Code extension, iOS simulator): trusted
       // exactly as before — immediate welcome burst, implicit desktop role.

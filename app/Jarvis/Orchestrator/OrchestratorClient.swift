@@ -100,6 +100,7 @@ final class OrchestratorClient: ObservableObject {
     var onCancelled: (() -> Void)?
 
     private var task: URLSessionWebSocketTask?
+    private var pingTask: Task<Void, Never>?
     /// Computed per-connection so a Settings change applies on the next reconnect.
     private var url: URL { Endpoints.orchestratorURL }
     private var reconnectDelay: UInt64 = 1_000_000_000  // 1s, backs off
@@ -107,6 +108,17 @@ final class OrchestratorClient: ObservableObject {
     func connect() {
         task = URLSession.shared.webSocketTask(with: url)
         task?.resume()
+        // Liveness: a half-open TCP socket (network switch, app backgrounded) fails
+        // only when something is SENT, so `connected` can lie indefinitely. Ping on
+        // an interval; a failed pong reconnects, flipping the UI to offline.
+        pingTask?.cancel()
+        pingTask = Task { [weak self] in
+            while !Task.isCancelled {
+                try? await Task.sleep(nanoseconds: 10_000_000_000)
+                guard let self else { return }
+                await self.pingNow()
+            }
+        }
         // `connected` flips true on the first inbound frame (see handle) — setting
         // it here optimistically made the HUD strobe ONLINE/OFFLINE while the
         // server was unreachable (every retry claimed success for a moment).
@@ -179,6 +191,25 @@ final class OrchestratorClient: ObservableObject {
         }
     }
 
+    /// Verify the socket right now (e.g. when the iOS app returns to foreground) —
+    /// a socket that died while the app was suspended is detected in ~a second
+    /// instead of on the next ping-loop tick.
+    func nudge() { Task { await pingNow() } }
+
+    /// One guarded ping: reconnect only if the FAILING socket is still the current
+    /// one, so a ping failure and a receive failure on the same dead socket can't
+    /// each schedule a reconnect (two live sockets after the dust settles).
+    private func pingNow() async {
+        guard let t = task else { return }
+        t.sendPing { [weak self] error in
+            guard error != nil else { return }
+            Task { @MainActor in
+                guard let self, self.task === t else { return }
+                self.reconnect()
+            }
+        }
+    }
+
     // MARK: - Plumbing
 
     private func send(json: [String: Any]) {
@@ -188,9 +219,11 @@ final class OrchestratorClient: ObservableObject {
     }
 
     private func receive() {
-        task?.receive { [weak self] result in
+        guard let t = task else { return }
+        t.receive { [weak self] result in
             guard let self else { return }
             Task { @MainActor in
+                guard self.task === t else { return }  // stale socket; a newer one owns the loop
                 switch result {
                 case .success(let message):
                     if case .string(let str) = message { self.handle(str) }
@@ -267,10 +300,19 @@ final class OrchestratorClient: ObservableObject {
             if let id = obj["id"] as? String {
                 let name = obj["name"] as? String ?? "?"
                 let role = obj["role"] as? String ?? ""
+                let parent = obj["parent"] as? String
+                // A parentless spawn is a turn's root ("interpret"). Turn events are
+                // broadcast to every client, so for turns started on ANOTHER device
+                // nothing cleared the previous graph — do it here. No-op for local
+                // turns (sendPrompt already cleared).
+                if parent == nil {
+                    agentGraph.removeAll()
+                    pendingThought.removeAll()
+                }
                 agentGraph.append(AgentNode(
                     id: id,
                     name: name,
-                    parent: obj["parent"] as? String,
+                    parent: parent,
                     tier: obj["tier"] as? String ?? "",
                     role: role,
                     status: .working
@@ -342,6 +384,10 @@ final class OrchestratorClient: ObservableObject {
         case "hello_ok":
             // The orchestrator accepted our mobile token (remote clients only).
             log(.info, "mobile role authenticated")
+        case "prompt_echo":
+            // A turn started on another device (phone ↔ Mac) — mirror the prompt
+            // into this log so the agent activity that follows reads coherently.
+            if let text = obj["text"] as? String, !text.isEmpty { log(.prompt, text) }
         case "phone":
             let was = phoneConnected
             phoneConnected = obj["connected"] as? Bool ?? false

@@ -4,9 +4,10 @@ import Foundation
 /// scripts (one source of truth with the terminal workflow). macOS-only — lives
 /// in MenuBar/, which the iOS target excludes.
 ///
-/// Known limitation: a script spawned from the app inherits the app's (GUI)
-/// environment, so mobile-exposure vars like JARVIS_WS_HOST don't apply — the
-/// LAN-exposed orchestrator is still started from a terminal (ios-package.sh).
+/// Mobile exposure: once a phone has been paired (~/.jarvis/mobile-token exists),
+/// HUD-started services get the same env ios-package.sh --up uses, so the phone
+/// can reach an orchestrator started from either place. Remote sockets still
+/// require the token — posture unchanged. No token file → loopback-only, as before.
 @MainActor
 final class ServiceController: ObservableObject {
     @Published var orchestratorUp = false
@@ -50,6 +51,7 @@ final class ServiceController: ObservableObject {
             let proc = Process()
             proc.executableURL = URL(fileURLWithPath: "/bin/bash")
             proc.arguments = [path] + args
+            proc.environment = Self.serviceEnvironment()
             proc.standardOutput = FileHandle.nullDevice
             proc.standardError = FileHandle.nullDevice
             // Handler is set before run() so a fast exit can't slip past it.
@@ -59,6 +61,23 @@ final class ServiceController: ObservableObject {
         orchestratorUp = await Self.probeTCP(7777)
         proxyUp = await Self.probeTCP(9090)
         return ok
+    }
+
+    /// GUI env + mobile exposure when a phone is paired: mirrors what
+    /// scripts/ios-package.sh --up exports (JARVIS_WS_HOST / PIPER_HOST /
+    /// KOKORO_HOST / PIPER_TOKEN), keyed off the pairing token's existence.
+    private static func serviceEnvironment() -> [String: String] {
+        var env = ProcessInfo.processInfo.environment
+        let tokenFile = FileManager.default.homeDirectoryForCurrentUser
+            .appendingPathComponent(".jarvis/mobile-token")
+        if let token = try? String(contentsOf: tokenFile, encoding: .utf8)
+            .trimmingCharacters(in: .whitespacesAndNewlines), !token.isEmpty {
+            env["JARVIS_WS_HOST"] = "0.0.0.0"
+            env["PIPER_HOST"] = "0.0.0.0"
+            env["KOKORO_HOST"] = "0.0.0.0"
+            env["PIPER_TOKEN"] = token
+        }
+        return env
     }
 
     /// True if something is listening on 127.0.0.1:port. A blocking connect is fine

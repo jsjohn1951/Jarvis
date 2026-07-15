@@ -30,14 +30,20 @@ except Exception as e:  # non-fatal — first real request will just be slightly
 app = FastAPI()
 
 # Optional shared-secret gate for non-loopback binds (KOKORO_HOST=0.0.0.0 for the
-# iOS client) — same contract as piper_server.py: when PIPER_TOKEN is set, every
-# request must carry it in X-Jarvis-Token.
+# iOS client) — same contract as piper_server.py: when PIPER_TOKEN is set,
+# non-loopback requests must carry it in X-Jarvis-Token; loopback callers stay
+# trusted tokenless (same model as the orchestrator's mobile-auth.ts isLoopback).
 TOKEN = os.environ.get("PIPER_TOKEN", "")
+
+
+def _is_loopback(host):
+    return host in ("127.0.0.1", "::1") or (host or "").startswith("::ffff:127.")
 
 
 @app.middleware("http")
 async def require_token(request: Request, call_next):
-    if TOKEN and request.headers.get("x-jarvis-token", "") != TOKEN:
+    peer = request.client.host if request.client else None
+    if TOKEN and not _is_loopback(peer) and request.headers.get("x-jarvis-token", "") != TOKEN:
         return JSONResponse({"error": "missing or bad X-Jarvis-Token"}, status_code=401)
     return await call_next(request)
 

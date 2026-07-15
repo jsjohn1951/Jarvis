@@ -36,16 +36,22 @@ except Exception as e:
 app = FastAPI()
 
 # Optional shared-secret gate for non-loopback binds (PIPER_HOST=0.0.0.0 for the
-# iOS client): when PIPER_TOKEN is set, every request must carry it in
-# X-Jarvis-Token. Loopback callers on the default bind are unaffected (no token
-# set → no check). The token is the same pairing secret the orchestrator uses
-# (~/.jarvis/mobile-token), exported by scripts/start-jarvis.sh.
+# iOS client): when PIPER_TOKEN is set, NON-LOOPBACK requests must carry it in
+# X-Jarvis-Token. Loopback callers stay trusted tokenless — same model as the
+# orchestrator (mobile-auth.ts isLoopback) — so the Mac app's TTS calls and the
+# start script's /health wait keep working on an exposed bind. The token is the
+# pairing secret (~/.jarvis/mobile-token), exported by scripts/start-jarvis.sh.
 TOKEN = os.environ.get("PIPER_TOKEN", "")
+
+
+def _is_loopback(host):
+    return host in ("127.0.0.1", "::1") or (host or "").startswith("::ffff:127.")
 
 
 @app.middleware("http")
 async def require_token(request: Request, call_next):
-    if TOKEN and request.headers.get("x-jarvis-token", "") != TOKEN:
+    peer = request.client.host if request.client else None
+    if TOKEN and not _is_loopback(peer) and request.headers.get("x-jarvis-token", "") != TOKEN:
         return JSONResponse({"error": "missing or bad X-Jarvis-Token"}, status_code=401)
     return await call_next(request)
 

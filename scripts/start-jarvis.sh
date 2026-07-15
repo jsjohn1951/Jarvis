@@ -49,6 +49,18 @@ else
   echo "      skipped — gemma-3-4b-it-Q4_K_M.gguf not in ~/models (conversation falls back to the 2B). Run models/pull-models.sh"
 fi
 
+# Mobile exposure: once a phone is paired (~/.jarvis/mobile-token exists), a plain
+# start defaults to the same exposure env ios-package.sh --up sets, so the phone
+# can connect no matter how the stack was started (the Mac HUD's ServiceController
+# does the same). Explicit env still wins; no token file → loopback-only, as ever.
+MOBILE_TOKEN_FILE="${JARVIS_MOBILE_TOKEN_FILE:-$HOME/.jarvis/mobile-token}"
+if [[ -z "${JARVIS_WS_HOST:-}" && -s "$MOBILE_TOKEN_FILE" ]]; then
+  export JARVIS_WS_HOST=0.0.0.0
+  export PIPER_HOST="${PIPER_HOST:-0.0.0.0}" KOKORO_HOST="${KOKORO_HOST:-0.0.0.0}"
+  export PIPER_TOKEN="${PIPER_TOKEN:-$(cat "$MOBILE_TOKEN_FILE")}"
+  echo "[mobile] phone paired — exposing orchestrator/TTS beyond loopback (token required)"
+fi
+
 # TTS engine is selectable: piper (default, en_GB-alan) or kokoro (bm_george).
 TTS_ENGINE="${JARVIS_TTS_ENGINE:-piper}"
 if [[ "$TTS_ENGINE" == "kokoro" ]]; then

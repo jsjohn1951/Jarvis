@@ -39,6 +39,11 @@ host / ports / token / model URL + sha256. Then Settings → *Download* the mode
   quarantined until a valid `{type:"hello", role:"mobile", token}`
   ([orchestrator/src/mobile-auth.ts](../orchestrator/src/mobile-auth.ts)); 10s
   timeout → close 4001. `shutdown`/`swap` are rejected for mobile sockets.
+  Once `~/.jarvis/mobile-token` exists (a phone has been paired), both the Mac
+  HUD's service controls ([ServiceController.swift](../app/Jarvis/MenuBar/ServiceController.swift))
+  and a plain `./scripts/start-jarvis.sh` default to the same mobile-exposure env
+  automatically, so every way of starting the stack behaves like `ios-package.sh --up`.
+  Set `JARVIS_WS_HOST=127.0.0.1` explicitly to force loopback-only despite pairing.
 - TTS: `PIPER_HOST=0.0.0.0` + `PIPER_TOKEN=<token>` requires `X-Jarvis-Token`.
 - Desktop actuation (`act`) is never sent to a mobile socket; a phone-originated
   "open Chrome" drives the *Mac* app when it's connected, else the tool returns a

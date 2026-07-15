@@ -18,6 +18,7 @@ struct MobileHUDView: View {
                 inputBar
             }
             .padding()
+            .dismissKeyboardOnTap()   // plain stacks only — see the extension's doc
             .navigationTitle("Jarvis")
             .navigationBarTitleDisplayMode(.inline)
             .toolbar {
@@ -104,6 +105,7 @@ struct MobileHUDView: View {
             .frame(maxWidth: .infinity)
         }
         .defaultScrollAnchor(.bottom)
+        .scrollDismissesKeyboard(.interactively)
     }
 
     private var micButton: some View {

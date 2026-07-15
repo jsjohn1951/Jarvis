@@ -85,10 +85,18 @@ struct SettingsView: View {
                         .frame(maxWidth: .infinity)
                 }
             }
+            .scrollDismissesKeyboard(.interactively)
             .navigationTitle("Settings")
             .navigationBarTitleDisplayMode(.inline)
             .toolbar {
                 ToolbarItem(placement: .topBarTrailing) { Button("Done") { dismiss() } }
+                // A Form is List-backed, so tap-to-dismiss would swallow row-button
+                // taps; dismiss via the keyboard's own toolbar instead (also the only
+                // escape for the number-pad fields, which have no return key).
+                ToolbarItemGroup(placement: .keyboard) {
+                    Spacer()
+                    Button("Done") { hideKeyboard() }
+                }
             }
             .onAppear {
                 honorific = voice.honorific
